@@ -1,7 +1,7 @@
 # Task divison
 **Writer**: Lạc  
 **Reviewers**: Quân, Tĩnh  
-**Version**: 1.0.1  
+**Version**: 1.0.2 
 **Last edited**: Oct 31 2026  
 
 --- 
@@ -26,7 +26,7 @@ Expected window: 8 days (Oct 31 - Nov 7)
 |RE-02| Explain low-rank factorization, rank \(r\), and scaling factor \(\alpha\). Identify which parameters are frozen and which are trained. | Lạc | `docs/summary/LoRA-summary.tex` and `docs/summary/CL-LoRA-summary.tex` | Nov 3 | Foundational task for RE-03, RE-04, RE-05, and the method section; share the LoRA formula as soon as it is ready. |
 |RE-03| Calculate trainable-parameter counts for a \(1024 x 1024\) weight matrix using full fine-tuning and LoRA ranks 4, 8, and 16. Estimate the reduction ratios, and distinguish parameter counts from actual GPU memory consumption. | Tĩnh | `docs/assets/calculation.md` | Nov 4 | Depends on the dimensions and formula in RE-02; supplies the worked example for WR-04. |
 |RE-04| Illustrate LoRA training and inference pipelines, including adapter merging; explain intuitively how QLoRA differs from LoRA (a frozen quantized base model plus low-rank adapters). | Quân | `docs/assets/LoRA-pipeline.png` and `docs/summary/adapter-methods-comparison.tex` | Nov 5 | Depends on RE-02. Draw the LoRA pipeline first; Update: CL paper is allowed so compare those papers against LoRA. |
-| RE-05 | If resources permit, fine-tune a very small model or synthetic layer and compare two ranks. Otherwise, use a toy linear-layer experiment and compare parameter counts with a simple quality measure. | Lạc | Kaggle notebook and results in JSON format stored in `docs/test-results/` | Nov 6 | Start after RE-02 fixes the method and compared ranks; results feed WR-05. Existing N-LoRA code is available if useful. |
+| RE-05 | If resources permit, fine-tune a very small model or synthetic layer and compare two ranks. Otherwise, use a toy linear-layer experiment and compare parameter counts with a simple quality measure. | Lạc | Kaggle notebook in `src/` and results in JSON format stored in `docs/test-results/` | Nov 6 | Start after RE-02 fixes the method and compared ranks; results feed WR-05. Existing N-LoRA code is available if useful. |
 |RE-06| Analyze trade-offs among model quality, memory use, training time, inference efficiency, and experimental risks. Describe when LoRA may not be the best choice. | Tĩnh | `docs/summary/trade-off.tex` | Nov 7 | Synthesize RE-03 to RE-05, including experimental limitations, for WR-05 and WR-06. |
 
 ### Writing
