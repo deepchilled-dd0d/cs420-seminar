@@ -1,0 +1,43 @@
+\documentclass[runningheads,10pt]{llncs}
+
+% Follow the LLNCS structure in ref.tex while keeping the report content modular.
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{graphicx}
+\graphicspath{{../assets/}}
+\usepackage{booktabs,tabularx}
+\usepackage{enumitem}
+\usepackage{multicol}
+
+\usepackage[style=lncs,backend=biber,natbib=true]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage[colorlinks=true]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\title{LoRA and QLoRA: Parameter-Efficient Fine-Tuning of Large Models}
+\titlerunning{LoRA and QLoRA}
+\author{Thiên-Lạc, Quách\and Quân, Phạm Nguyễn Minh\and Tĩnh, Nguyễn Văn}
+\institute{CS420 Seminar}
+
+\begin{document}
+\maketitle
+\input{abstract}
+
+\begin{multicols}{2}
+\sloppy
+\raggedright
+\input{introduction}
+\input{background}
+\input{method}
+\input{results}
+\input{conclusion}
+\end{multicols}
+
+\input{references}
+\end{document}
