@@ -4,11 +4,11 @@ Low-Rank Adaptation (LoRA) is a parameter-efficient\footnote{Parameter-efficient
 
 \subsection{Introduction}
 
-\subsubsection{The problem}
+\subsubsection{Problem}
 
 Full fine-tuning updates all model parameters. For a large model such as GPT-3 (175 billion parameters), this makes training expensive and requires storing a separate full-size checkpoint for each task. Other parameter-efficient methods reduce task-specific storage, but some add inference latency or use part of the available context window.
 
-\subsubsection{The solution}
+\subsubsection{Solution}
 
 Motivated by evidence that model adaptation can take place in a low-dimensional subspace, the LoRA authors hypothesize that the required weight updates have low intrinsic rank.\footnote{Here, low intrinsic rank means that the task-specific change to a weight matrix can be represented effectively by a product of two matrices with a small shared dimension.} LoRA therefore represents the update to selected weight matrices with two trainable, low-rank matrices while keeping the original weights fixed.
 
@@ -29,7 +29,7 @@ Consider a pre-trained autoregressive language model\footnote{An autoregressive 
 	\max_{\Phi}
 	\sum_{(x,y)\in\mathcal{Z}}
 	\sum_{t=1}^{|y|}
-	\log P_{\Phi}(y_t\mid x,y_{<t}).
+	\log P_{\Phi}(y_t\mid x,y_{<t})
 \]
 
 This approach learns a full-size parameter change \(\Delta\Phi\) for every task, which is extremely computationally expensive for large models. LoRA instead learns a much smaller set of parameters \(\Theta\), which defines updates \(\Delta\Phi(\Theta)\) to selected weights while the pre-trained parameters stay frozen. The objective becomes
@@ -37,15 +37,15 @@ This approach learns a full-size parameter change \(\Delta\Phi\) for every task,
 	\max_{\Theta}
 	\sum_{(x,y)\in\mathcal{Z}}
 	\sum_{t=1}^{|y|}
-	\log P_{\Phi_0+\Delta\Phi(\Theta)}(y_t\mid x,y_{<t}),
-	\qquad |\Theta|\ll|\Phi_0|.
+	\log P_{\Phi_0+\Delta\Phi(\Theta)}(y_t\mid x,y_{<t})
 \]
+where \(|\Theta|\ll|\Phi_0|\).
 
 \subsubsection{Method}
 
-For a pre-trained weight matrix \(W_0\in\mathbb{R}^{d\times k}\), LoRA constrains its update to \(\Delta W=BA\), where \(B\in\mathbb{R}^{d\times r}\), \(A\in\mathbb{R}^{r\times k}\), and \(r\ll\min(d,k)\). With input \(x\in\mathbb{R}^{k}\), the adapted layer computes
+For a pre-trained weight matrix \(W_0\in\mathbb{R}^{d\times k}\), LoRA constrains its update to \(\Delta W=AB\), where \(A\in\mathbb{R}^{d\times r}\), \(B\in\mathbb{R}^{r\times k}\), and \(r\ll\min(d,k)\). With input \(x\in\mathbb{R}^{k}\), the adapted layer computes
 \[
-	h=W_0x+\frac{\alpha}{r}BAx,
+	h=W_0x+\frac{\alpha}{r}ABx
 \]
 where \(\alpha\) is a scaling hyperparameter. The factor \(\alpha/r\) reduces the need to retune other hyperparameters when the rank \(r\) changes. Only \(A\) and \(B\) are trained; \(W_0\) remains frozen.
 
@@ -53,10 +53,10 @@ For this matrix, LoRA trains \(r(d+k)\) parameters instead of the \(dk\) weights
 
 \subsubsection{Initialization and deployment}
 
-The original LoRA method initializes \(A\) with random Gaussian values and \(B\) with zeros. Consequently, \(BA=0\) at the start of training, so the adapted layer initially computes exactly \(W_0x\). Training then changes \(A\) and \(B\) while leaving \(W_0\) fixed.
+The original LoRA method initializes \(A\) with random Gaussian values and \(B\) with zeros. Consequently, \(AB=0\) at the start of training, so the adapted layer initially computes exactly \(W_0x\). Training then changes \(A\) and \(B\) while leaving \(W_0\) fixed.
 
 After training, the update can be merged into the weight matrix:
 \[
-	W_{\mathrm{merged}}=W_0+\frac{\alpha}{r}BA.
+	W_{\mathrm{merged}}=W_0+\frac{\alpha}{r}AB
 \]
 Inference with \(W_{\mathrm{merged}}x\) uses the same matrix multiplication as the original layer and incurs no additional latency from a separate LoRA path. For multiple tasks, one can retain the shared base model and store a small adapter for each task, merging the chosen adapter when needed. Deploying an adapter separately still requires access to its matching base model.
