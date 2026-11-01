@@ -15,9 +15,27 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v7
+            
+            - name: Install LaTeX
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y \
+                      latexmk \
+                      texlive-latex-recommended \
+                      texlive-latex-extra \
+                      texlive-fonts-recommended
 
             - name: Compile PDF
-              uses: xu-cheng/latex-action@v4
+              uses: |
+                  latexmk \
+                      -cd \
+                      -pdf \
+                      -interaction=nonstopmode \
+                      -halt-on-error \
+                      -file-line-error \
+                      docs/report/report.tex \
+                      docs/summary/summary.tex \
+                      docs/report/presentation.tex
               with:
                   root_file: |
                     docs/report/report.tex
