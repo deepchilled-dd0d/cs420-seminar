@@ -32,7 +32,7 @@ Consider a pre-trained autoregressive language model\footnote{An autoregressive 
 \log P_{\Phi}(y_t\mid x,y_{<t}).
 \]
 
-This approach learns a full-size parameter change $\Delta\Phi$ for every task. LoRA instead learns a much smaller set of parameters $\Theta$, which defines updates $\Delta\Phi(\Theta)$ to selected weights while the pre-trained parameters stay frozen. The objective becomes
+This approach learns a full-size parameter change $\Delta\Phi$ for every task, which is extremely computationally expensive for large models. LoRA instead learns a much smaller set of parameters $\Theta$, which defines updates $\Delta\Phi(\Theta)$ to selected weights while the pre-trained parameters stay frozen. The objective becomes
 \[
 \max_{\Theta}
 \sum_{(x,y)\in\mathcal{Z}}
