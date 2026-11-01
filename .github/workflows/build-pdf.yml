@@ -15,40 +15,51 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v7
-            
+
             - name: Install LaTeX
               run: |
                   sudo apt-get update
                   sudo apt-get install -y \
                       latexmk \
+                      biber \
                       texlive-latex-recommended \
                       texlive-latex-extra \
-                      texlive-fonts-recommended
+                      texlive-fonts-recommended \
+                      texlive-publishers \
+                      texlive-bibtex-extra
 
             - name: Compile PDF
-              uses: |
+              run: |
                   latexmk \
                       -cd \
                       -pdf \
                       -interaction=nonstopmode \
                       -halt-on-error \
                       -file-line-error \
+                      docs/report/presentation.tex \
                       docs/report/report.tex \
-                      docs/summary/summary.tex \
-                      docs/report/presentation.tex
-              with:
-                  root_file: |
-                    docs/report/report.tex
-                    docs/summary/summary.tex
-                    docs/report/presentation.tex
+                      docs/summary/summary.tex
 
             - name: Upload PDF artifact
               uses: actions/upload-artifact@v7
               with:
                   name: pdf-${{ github.sha }}
                   path: |
+                    docs/report/presentation.pdf
                     docs/report/report.pdf
                     docs/summary/summary.pdf
-                    docs/report/presentation.pdf
                   if-no-files-found: error
                   retention-days: 60
+
+            - name: Debug LaTeX failure
+              if: failure()
+              run: |
+                  find docs -type f -name '*.log' -print -exec sh -c '
+                      for file do
+                          echo ""
+                          echo "========================================"
+                          echo "LOG FILE: $file"
+                          echo "========================================"
+                          cat "$file"
+                      done
+                  ' sh {} +
