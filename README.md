@@ -10,7 +10,7 @@
    full finetuning and LoRA ranks 4, 8, and 16. Estimate the reduction ratios,
    and distinguish parameter counts from actual GPU memory consumption.
 4. Illustrate LoRA training and inference pipelines, including adapter merging.
-   Explain intuitively how QLoRA differs from LoRA.
+   Explain intuitively how OLoRA differs from LoRA.
 5. If resources permit, fine-tune a very small model or synthetic layer and
    compare two ranks. Otherwise, use a toy linear-layer experiment and compare
    parameter counts with a simple quality measure.
