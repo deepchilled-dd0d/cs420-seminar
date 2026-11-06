@@ -15,19 +15,19 @@ Also, analyze parameter reduction ratios and distinguish trainable parameter cou
 
 Consider an original weight matrix:
 
-\[
+$$
 W \in \mathbb{R}^{1024 \times 1024}
-\]
+$$
 
 For LoRA, the weight update is represented by two low-rank matrices:
 
-\[
+$$
 A \in \mathbb{R}^{r \times 1024}
-\]
+$$
 
-\[
+$$
 B \in \mathbb{R}^{1024 \times r}
-\]
+$$
 
 The original weight matrix W is frozen, while A and B are trainable.
 
@@ -35,13 +35,13 @@ The original weight matrix W is frozen, while A and B are trainable.
 
 Full Fine-Tuning updates every parameter in the original weight matrix.
 
-\[
+$$
 N_{\text{Full}} = 1024 \times 1024
-\]
+$$
 
-\[
+$$
 \boxed{N_{\text{Full}} = 1,048,576}
-\]
+$$
 
 Therefore, Full Fine-Tuning requires 1,048,576 trainable parameters.
 
@@ -51,72 +51,72 @@ LoRA trains only the two low-rank matrices A and B.
 
 The number of trainable parameters is:
 
-\[
+$$
 N_{\text{LoRA}} = (r \times 1024) + (1024 \times r)
-\]
+$$
 
 Simplifying:
 
-\[
+$$
 \boxed{N_{\text{LoRA}} = 2048r}
-\]
+$$
 
 ### 4.1. LoRA Rank = 4
 
-\[
+$$
 N_{\text{LoRA}} = 2048 \times 4 = 8,192
-\]
+$$
 
 Reduction ratio:
 
-\[
+$$
 \frac{1,048,576}{8,192} = 128
-\]
+$$
 
 Percentage reduction:
 
-\[
+$$
 \left(1-\frac{8,192}{1,048,576}\right)\times100
 =99.21875\%
-\]
+$$
 
 ### 4.2. LoRA Rank = 8
 
-\[
+$$
 N_{\text{LoRA}} = 2048 \times 8 = 16,384
-\]
+$$
 
 Reduction ratio:
 
-\[
+$$
 \frac{1,048,576}{16,384} = 64
-\]
+$$
 
 Percentage reduction:
 
-\[
+$$
 \left(1-\frac{16,384}{1,048,576}\right)\times100
 =98.4375\%
-\]
+$$
 
 ### 4.3. LoRA Rank = 16
 
-\[
+$$
 N_{\text{LoRA}} = 2048 \times 16 = 32,768
-\]
+$$
 
 Reduction ratio:
 
-\[
+$$
 \frac{1,048,576}{32,768} = 32
-\]
+$$
 
 Percentage reduction:
 
-\[
+$$
 \left(1-\frac{32,768}{1,048,576}\right)\times100
 =96.875\%
-\]
+$$
 
 ## 5. Comparison Summary
 
@@ -150,9 +150,9 @@ Even though LoRA freezes the original weight matrix, it must still keep the orig
 
 For example, using FP32 precision, the original weight matrix requires:
 
-\[
+$$
 1024 \times 1024 \times 4 = 4,194,304 \text{ bytes}
-\]
+$$
 
 This is approximately 4 MiB.
 
