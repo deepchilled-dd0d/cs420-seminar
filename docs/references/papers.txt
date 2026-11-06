@@ -1,0 +1,23 @@
+ICLR22
+LoRA: Low-Rank Adaptation of Large Language Models
+https://arxiv.org/abs/2106.09685
+
+ICLR24
+The Expressive Power of Low-Rank Adaptation
+https://arxiv.org/abs/2310.17513
+
+ICML24
+LoRA Training in the NTK Regime has No Spurious Local Minima
+https://arxiv.org/abs/2402.11867
+
+ICML25
+LoRA Training Provably Converges to a Low-Rank Global Minimum or It Fails Loudly (But it Probably Won't Fail)
+https://arxiv.org/abs/2502.09376
+
+ICML26
+Towards Understanding the Dynamics of Low-Rank Adaptation
+https://proceedings.mlr.press/v306/ding26k.html
+
+ICMML26
+On the Convergence Rate of LoRA Gradient Descent
+https://arxiv.org/abs/2512.18248
