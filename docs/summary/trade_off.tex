@@ -1,5 +1,4 @@
 \section{Trade-off Analysis of LoRA}
-\label{sec:lora-tradeoffs}
 
 \subsection{Overview}
 
@@ -29,21 +28,21 @@ Table~\ref{tab:re05-classification} summarizes the per-category
 classification results.
 
 \begin{table}[htbp]
-\centering
-\caption{RE-05 classification results by category}
-\label{tab:re05-classification}
-\begin{tabular}{lrrrr}
-\hline
-Category & Precision & Recall & F1-score & Support \\
-\hline
-World    & 0.9552 & 0.9421 & 0.9486 & 1,900 \\
-Sports   & 0.9817 & 0.9884 & 0.9851 & 1,900 \\
-Business & 0.9123 & 0.8974 & 0.9047 & 1,900 \\
-Sci/Tech & 0.9017 & 0.9226 & 0.9121 & 1,900 \\
-\hline
-Macro average & 0.9377 & 0.9376 & 0.9376 & 7,600 \\
-\hline
-\end{tabular}
+	\centering
+	\caption{RE-05 classification results by category}
+	\label{tab:re05-classification}
+	\begin{tabular}{lrrrr}
+		\hline
+		Category      & Precision & Recall & F1-score & Support \\
+		\hline
+		World         & 0.9552    & 0.9421 & 0.9486   & 1,900   \\
+		Sports        & 0.9817    & 0.9884 & 0.9851   & 1,900   \\
+		Business      & 0.9123    & 0.8974 & 0.9047   & 1,900   \\
+		Sci/Tech      & 0.9017    & 0.9226 & 0.9121   & 1,900   \\
+		\hline
+		Macro average & 0.9377    & 0.9376 & 0.9376   & 7,600   \\
+		\hline
+	\end{tabular}
 \end{table}
 
 Sports has the highest F1-score (0.9851), whereas Business has
@@ -77,7 +76,7 @@ $1024 \times 1024$ weight matrix. Under Full Fine-Tuning, all
 $1024 \times 1024$ entries are trainable:
 
 $$
-N_{\mathrm{Full}} = 1024 \times 1024 = 1,048,576.
+	N_{\mathrm{Full}} = 1024 \times 1024 = 1,048,576.
 $$
 
 For LoRA, the original matrix is frozen and the update is
@@ -85,27 +84,27 @@ represented by two trainable matrices with dimensions
 $r \times 1024$ and $1024 \times r$. Thus,
 
 $$
-N_{\mathrm{LoRA}} = 1024r + 1024r = 2048r.
+	N_{\mathrm{LoRA}} = 1024r + 1024r = 2048r.
 $$
 
 The resulting parameter counts are shown in
 Table~\ref{tab:re03-parameters}.
 
 \begin{table}[htbp]
-\centering
-\caption{RE-03 trainable-parameter calculation for one
-$1024 \times 1024$ weight matrix}
-\label{tab:re03-parameters}
-\begin{tabular}{lrrr}
-\hline
-Method & Trainable parameters & Reduction ratio & Reduction \\
-\hline
-Full Fine-Tuning & 1,048,576 & $1\times$ & 0\% \\
-LoRA, $r=4$  & 8,192  & $128\times$ & 99.21875\% \\
-LoRA, $r=8$  & 16,384 & $64\times$  & 98.43750\% \\
-LoRA, $r=16$ & 32,768 & $32\times$  & 96.87500\% \\
-\hline
-\end{tabular}
+	\centering
+	\caption{RE-03 trainable-parameter calculation for one
+		$1024 \times 1024$ weight matrix}
+	\label{tab:re03-parameters}
+	\begin{tabular}{lrrr}
+		\hline
+		Method           & Trainable parameters & Reduction ratio & Reduction  \\
+		\hline
+		Full Fine-Tuning & 1,048,576            & $1\times$       & 0\%        \\
+		LoRA, $r=4$      & 8,192                & $128\times$     & 99.21875\% \\
+		LoRA, $r=8$      & 16,384               & $64\times$      & 98.43750\% \\
+		LoRA, $r=16$     & 32,768               & $32\times$      & 96.87500\% \\
+		\hline
+	\end{tabular}
 \end{table}
 
 The calculation shows that LoRA can greatly reduce the number
@@ -121,9 +120,9 @@ For the single matrix considered in RE-03, storing the original
 weights in FP32 requires
 
 $$
-1024 \times 1024 \times 4
-= 4,194,304 \text{ bytes}
-\approx 4 \text{ MiB}.
+	1024 \times 1024 \times 4
+	= 4,194,304 \text{ bytes}
+	\approx 4 \text{ MiB}.
 $$
 
 This is only the storage requirement for that one matrix, not
@@ -179,7 +178,7 @@ In a standard LoRA formulation, the adapted weight can be
 expressed as
 
 $$
-W' = W + \frac{\alpha}{r}BA,
+	W' = W + \frac{\alpha}{r}BA,
 $$
 
 where $W$ is the frozen pretrained weight matrix, $A$ and $B$
@@ -192,8 +191,8 @@ the base computation. Alternatively, the update can be merged
 into the base weights:
 
 $$
-W_{\mathrm{merged}} =
-W + \frac{\alpha}{r}BA.
+	W_{\mathrm{merged}} =
+	W + \frac{\alpha}{r}BA.
 $$
 
 After merging, the adapted weight can be used directly, avoiding
@@ -215,39 +214,39 @@ on the supplied test set, but several limitations restrict the
 conclusions that can be drawn.
 
 \begin{itemize}
-  \item \textbf{No rank-specific comparison in the supplied
-  metrics:} The CSV files do not identify the rank used for the
-  reported run or provide results for multiple ranks. They
-  therefore cannot establish how changing rank affects quality.
+	\item \textbf{No rank-specific comparison in the supplied
+		      metrics:} The CSV files do not identify the rank used for the
+	      reported run or provide results for multiple ranks. They
+	      therefore cannot establish how changing rank affects quality.
 
-  \item \textbf{No Full Fine-Tuning baseline:} Without a
-  comparable Full Fine-Tuning result, the experiment cannot
-  demonstrate that LoRA achieves equal or better quality, or
-  quantify a quality gap between the methods.
+	\item \textbf{No Full Fine-Tuning baseline:} Without a
+	      comparable Full Fine-Tuning result, the experiment cannot
+	      demonstrate that LoRA achieves equal or better quality, or
+	      quantify a quality gap between the methods.
 
-  \item \textbf{No measured training time or GPU memory:}
-  The metrics file reports test runtime and throughput, but
-  not training duration or peak GPU memory. Efficiency claims
-  about these two quantities remain theoretical unless further
-  measurements are supplied.
+	\item \textbf{No measured training time or GPU memory:}
+	      The metrics file reports test runtime and throughput, but
+	      not training duration or peak GPU memory. Efficiency claims
+	      about these two quantities remain theoretical unless further
+	      measurements are supplied.
 
-  \item \textbf{Single reported evaluation:} The supplied
-  metrics contain one set of aggregate results. No repeated
-  runs, random-seed comparison, or variability estimates are
-  included, so run-to-run stability cannot be assessed.
+	\item \textbf{Single reported evaluation:} The supplied
+	      metrics contain one set of aggregate results. No repeated
+	      runs, random-seed comparison, or variability estimates are
+	      included, so run-to-run stability cannot be assessed.
 
-  \item \textbf{Category-dependent errors:} Business and
-  Sci/Tech account for the largest mutual confusion in the
-  prediction file. Overall accuracy alone can hide these
-  category-specific weaknesses; per-class precision, recall,
-  F1-score, and the confusion matrix are therefore useful
-  complementary measures.
+	\item \textbf{Category-dependent errors:} Business and
+	      Sci/Tech account for the largest mutual confusion in the
+	      prediction file. Overall accuracy alone can hide these
+	      category-specific weaknesses; per-class precision, recall,
+	      F1-score, and the confusion matrix are therefore useful
+	      complementary measures.
 
-  \item \textbf{Limited scope of the RE-03 calculation:}
-  The $1024 \times 1024$ calculation is an illustrative
-  single-matrix example. It is not a measurement of the
-  trainable-parameter count or GPU memory of the complete
-  RE-05 model.
+	\item \textbf{Limited scope of the RE-03 calculation:}
+	      The $1024 \times 1024$ calculation is an illustrative
+	      single-matrix example. It is not a measurement of the
+	      trainable-parameter count or GPU memory of the complete
+	      RE-05 model.
 \end{itemize}
 
 For stronger experimental evidence, future comparisons should
@@ -269,33 +268,33 @@ Although LoRA is parameter-efficient, it is not automatically
 the best choice for every task.
 
 \begin{itemize}
-  \item \textbf{The task requires extensive parameter adaptation:}
-  If the task requires broad changes to the pretrained model,
-  Full Fine-Tuning may provide greater flexibility because it
-  can update all model weights.
+	\item \textbf{The task requires extensive parameter adaptation:}
+	      If the task requires broad changes to the pretrained model,
+	      Full Fine-Tuning may provide greater flexibility because it
+	      can update all model weights.
 
-  \item \textbf{The chosen rank is insufficient:}
-  If a low-rank update cannot reach the required validation
-  performance, a higher rank or a different fine-tuning method
-  may be necessary. Increasing rank also increases trainable
-  parameters and associated costs.
+	\item \textbf{The chosen rank is insufficient:}
+	      If a low-rank update cannot reach the required validation
+	      performance, a higher rank or a different fine-tuning method
+	      may be necessary. Increasing rank also increases trainable
+	      parameters and associated costs.
 
-  \item \textbf{Resource constraints are not important:}
-  For a relatively small model with sufficient GPU memory and
-  compute, the parameter-efficiency advantage of LoRA may be
-  less important than the simplicity of Full Fine-Tuning.
+	\item \textbf{Resource constraints are not important:}
+	      For a relatively small model with sufficient GPU memory and
+	      compute, the parameter-efficiency advantage of LoRA may be
+	      less important than the simplicity of Full Fine-Tuning.
 
-  \item \textbf{Deployment constraints dominate:}
-  If an application requires a particular inference or adapter
-  management workflow, separate adapters may introduce
-  operational complexity. Merging or another deployment
-  strategy may be more appropriate.
+	\item \textbf{Deployment constraints dominate:}
+	      If an application requires a particular inference or adapter
+	      management workflow, separate adapters may introduce
+	      operational complexity. Merging or another deployment
+	      strategy may be more appropriate.
 
-  \item \textbf{Experiments do not meet the quality target:}
-  If controlled evaluation shows that LoRA does not meet the
-  task's quality requirements after reasonable configuration
-  tuning, Full Fine-Tuning or another adaptation method should
-  be considered.
+	\item \textbf{Experiments do not meet the quality target:}
+	      If controlled evaluation shows that LoRA does not meet the
+	      task's quality requirements after reasonable configuration
+	      tuning, Full Fine-Tuning or another adaptation method should
+	      be considered.
 \end{itemize}
 
 These cases do not imply that LoRA will necessarily perform
