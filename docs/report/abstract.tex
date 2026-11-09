@@ -1,4 +1,18 @@
 \begin{abstract}
-	% Summarize the research question, methods, worked example, evidence,
-	% and conclusion after the other sections are drafted.
+	We examine whether Low-Rank Adaptation (LoRA) can reduce the cost of
+	fine-tuning while retaining useful task performance, and discuss
+	orthogonal LoRA (O-LoRA) for continual learning. The report reviews
+	parameter-efficient fine-tuning, derives trainable-parameter counts
+	for a $1024 \times 1024$ weight matrix, and evaluates rank-8 LoRA on
+	DistilRoBERTa for four-class AG News classification. In the worked
+	example, LoRA trains 8,192 parameters at rank 4, a 99.22\% reduction
+	from full fine-tuning of that matrix. In the experiment, adapters on
+	the query and value layers and the classifier account for 0.8944\% of
+	the model's parameters; on 7,600 test examples, the model achieves
+	93.76\% accuracy and 93.76\% macro-F1. These results demonstrate
+	parameter efficiency and promising performance in this setting, but
+	do not establish superiority over full fine-tuning or other ranks.
+	LoRA is therefore a practical option when reducing trainable
+	parameters matters, while model quality and total resource use still
+	require task-specific evaluation.
 \end{abstract}

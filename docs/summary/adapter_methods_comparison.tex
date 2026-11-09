@@ -1,0 +1,74 @@
+\section{Comparing LoRA and O-LoRA}
+
+LoRA and O-LoRA share the same low-rank adaptation idea, but address different learning settings. LoRA adapts a pretrained model to a task while training only a small low-rank update. O-LoRA extends this approach to sequential tasks by encouraging each task's update subspace to be orthogonal to earlier ones. This comparison follows the original \href{https://openreview.net/forum?id=nZeVKeeFYf9}{LoRA paper} by Hu et al. (ICLR 2022) and the \href{https://aclanthology.org/2023.findings-emnlp.715/}{O-LoRA paper} by Wang et al. (Findings of EMNLP 2023).
+
+\subsection{Shared low-rank formulation}
+
+Let a frozen weight matrix be \(W_0\in\mathbb{R}^{d\times k}\). For consistency with these notes, let \(A\in\mathbb{R}^{d\times r}\) and \(B\in\mathbb{R}^{r\times k}\), where \(r\ll\min(d,k)\), and define \(s=\alpha/r\). The original papers may assign the names \(A\) and \(B\) to the opposite factors; the product dimensions and resulting update are what matter. A LoRA-adapted layer computes
+\[
+  h=W_0x+sABx.
+\]
+Only \(A\) and \(B\) are trained; \(W_0\) stays frozen.
+
+\subsection{LoRA: parameter-efficient adaptation}
+
+LoRA learns a low-rank update for selected pretrained weight matrices. Compared with full fine-tuning, it reduces the number of trainable parameters and the associated gradient and optimizer-state storage. The frozen base model must still be stored and used. After training, the update can be merged into the base weights:
+\[
+  W_{\mathrm{merged}}=W_0+sAB.
+\]
+LoRA can use separate adapters for different tasks, but it does not itself specify how to preserve earlier task performance while learning a sequence.
+
+\subsection{O-LoRA: sequential task learning}
+
+O-LoRA assigns a new low-rank adapter to each task. When learning task \(t\), it freezes the base model and adapters from earlier tasks, then trains the current factors \(A_t,B_t\). The cumulative update is
+\[
+  W_t=W_0+s\sum_{i=1}^{t}A_iB_i.
+\]
+
+The method is motivated by the hypothesis that the column space of \(A_t\) approximates a low-rank subspace associated with task \(t\)'s gradients. It penalizes overlap between the current subspace and those of previous tasks:
+\[
+  \mathcal{L}_{t}
+  =\mathcal{L}_{\mathrm{task},t}
+   +\lambda\sum_{i=1}^{t-1}\left\|A_i^{\mathsf T}A_t\right\|_{F}^{2}.
+\]
+This encourages \(A_i^{\mathsf T}A_t\approx 0\) to reduce interference. A finite penalty does not guarantee exact orthogonality or eliminate forgetting. O-LoRA does not require a replay buffer in the proposed method, but retaining one adapter per task makes adapter storage grow with the number of tasks. The updates can be accumulated into the model weights for inference; retaining individual factors supports continued learning.
+
+\subsection{Comparison}
+
+\begin{table}[ht]
+\centering
+\caption{LoRA and O-LoRA share low-rank updates but target different learning settings.}
+\label{tab:adapter-method-comparison}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.2cm}*{2}{>{\raggedright\arraybackslash}X}@{}}
+\toprule
+\textbf{Aspect} & \textbf{LoRA} & \textbf{O-LoRA} \\
+\midrule
+Primary objective
+  & Adapt a pretrained model with fewer trainable parameters
+  & Learn tasks sequentially while limiting interference \\
+Base model
+  & Pretrained weights remain frozen
+  & Pretrained weights remain frozen; earlier task adapters are also frozen \\
+Trainable parameters
+  & Low-rank factors \(A,B\)
+  & Current task factors \(A_t,B_t\) \\
+Training objective
+  & Task loss
+  & Task loss plus an orthogonality penalty \\
+Task sequence
+  & Separate adapters can be stored, but sequential retention is not built into the method
+  & Adds and freezes one adapter per task; the method does not require replay data \\
+Forgetting
+  & No explicit forgetting-control mechanism
+  & Explicitly aims to mitigate forgetting, but does not guarantee its elimination \\
+Inference
+  & The selected adapter can be merged into the base weights
+  & Task updates can be accumulated into the weights; individual factors can be retained for future learning \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Takeaway and limitations}
+
+LoRA reduces the trainable part of fine-tuning. O-LoRA builds on LoRA when tasks arrive sequentially, using separate task adapters and a subspace penalty to limit interference. O-LoRA's benefit depends on the task sequence and penalty strength, and it trades added per-task adapter storage for retaining task-specific updates. The papers evaluate different models, datasets, and settings, so this is a conceptual comparison rather than a controlled performance ranking.

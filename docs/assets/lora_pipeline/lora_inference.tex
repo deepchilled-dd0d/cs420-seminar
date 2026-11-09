@@ -1,0 +1,38 @@
+\documentclass[tikz,border=8pt]{standalone}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usetikzlibrary{arrows.meta}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\sffamily\small,
+  block/.style={
+    draw=black!60,
+    fill=black!3,
+    rounded corners=2pt,
+    line width=0.7pt,
+    minimum height=9mm,
+    text width=2.8cm,
+    align=center,
+    inner sep=5pt,
+  },
+  frozen/.style={block, draw=blue!60!black, fill=blue!6},
+  adapter/.style={block, draw=teal!60!black, fill=teal!7},
+  result/.style={block, draw=orange!65!black, fill=orange!8},
+  arrow/.style={draw=black!65, line width=0.7pt, -{Latex[length=2mm]}},
+]
+
+\node[block, text width=2.0cm] (input) at (0,0) {Input \(x\)};
+\node[frozen] (base) at (-2.5,-1.6) {\(W_0x\)};
+\node[adapter] (adapter) at (2.5,-1.6) {\(sABx\)};
+\node[block, text width=2.2cm] (add) at (0,-3.3) {Add};
+\node[result, text width=2.2cm] (output) at (0,-4.9) {Output};
+
+\draw[arrow] (input) -- (base);
+\draw[arrow] (input) -- (adapter);
+\draw[arrow] (base) -- (add);
+\draw[arrow] (adapter) -- (add);
+\draw[arrow] (add) -- (output);
+\end{tikzpicture}
+\end{document}

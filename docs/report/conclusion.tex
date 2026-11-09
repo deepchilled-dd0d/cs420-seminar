@@ -1,2 +1,25 @@
 \section{Conclusion}
-% Answer the guiding question using evidence established above.
+LoRA offers a practical way to reduce the number of parameters updated
+during fine-tuning. For a $1024 \times 1024$ weight matrix, rank-4 LoRA
+uses 8,192 trainable parameters instead of 1,048,576, a 99.22\%
+reduction. In our rank-8 DistilRoBERTa experiment on AG News, the
+trainable adapters and classifier account for 0.8944\% of the model's
+parameters, and the model reaches 93.76\% test accuracy and 93.76\%
+macro-F1 across 7,600 examples. This provides evidence that LoRA can
+support effective adaptation with a small trainable parameter budget
+for this classification task.
+
+These findings do not show that LoRA matches or surpasses full
+fine-tuning: the experiment has no full fine-tuning baseline or
+comparison across ranks, and it does not measure GPU memory use.
+Freezing the base weights reduces gradient and optimizer-state
+requirements, but the weights, activations, and intermediate
+computations still consume memory. Rank selection also trades
+adaptation capacity against parameter cost, while keeping adapters
+separate or merging them affects deployment flexibility. O-LoRA
+extends the adapter approach by encouraging task-update subspaces to
+be orthogonal in continual learning, but it was not evaluated in our
+experiment. Overall, LoRA is most appropriate when limiting trainable
+parameters is important; its quality, resource benefits, and
+suitability should be verified under the target task and deployment
+conditions.
