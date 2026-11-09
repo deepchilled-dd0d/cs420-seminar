@@ -1,6 +1,6 @@
 \section{Method and Worked Example}
 % Define the symbols, explain the pipeline, and show the worked example.
-In this section, we describe the formulation of low-rank adaptation, the regularization term added to constraint orthogonality. We also provide a small worked example based on the LoRA paper.
+This section describes low-rank adaptation and the regularization term that encourages orthogonality. It also provides a small worked example based on the LoRA paper.
 
 \subsection{Method}
 
@@ -8,7 +8,7 @@ In this section, we describe the formulation of low-rank adaptation, the regular
 
 \paragraph{Single-task update}
 
-For a pre-trained weight matrix \(W_0\in\mathbb{R}^{d\times k}\), LoRA constrains its update to \(\Delta W=AB\), where \(A\in\mathbb{R}^{d\times r}\), \(B\in\mathbb{R}^{r\times k}\), and \(r\ll\min(d,k)\). With input \(x\in\mathbb{R}^{k}\), the adapted layer computes
+For a pre-trained weight matrix \(W_0\in\mathbb{R}^{d\times k}\), LoRA \cite{hu2022lora} constrains its update to \(\Delta W=AB\), where \(A\in\mathbb{R}^{d\times r}\), \(B\in\mathbb{R}^{r\times k}\), and \(r\ll\min(d,k)\). With input \(x\in\mathbb{R}^{k}\), the adapted layer computes
 \[
 	h=W_0x+\frac{\alpha}{r}ABx
 \]
@@ -29,11 +29,11 @@ After training, the update can be merged into the weight matrix:
 \]
 Inference with \(W_{\mathrm{merged}}x\) uses the same matrix multiplication as the original layer and incurs no additional latency from a separate LoRA path. For multiple tasks, one can retain the shared base model and store a small adapter for each task, merging the chosen adapter when needed. Deploying an adapter separately still requires access to its matching base model.
 
-\subsubsection(O-LoRA)
+\subsubsection{O-LoRA}
 
 \paragraph{Task-specific LoRA updates}
 
-Suppose tasks \(\mathcal{D}_1,\ldots,\mathcal{D}_T\) arrive sequentially, and only the current task's data \(\mathcal{D}_t\) are available when learning task \(t\). For a pre-trained weight matrix \(W_0 \in \mathbb{R}^{d \times k}\), O-LoRA learns a separate low-rank update \(A_t B_t\) for each task, where \(A_t \in \mathbb{R}^{d \times r}\), \(B_t \in \mathbb{R}^{r\times k}\), and \(r \ll \min(d,k)\). After task \(t\), the adapted matrix is
+Suppose tasks \(\mathcal{D}_1,\ldots,\mathcal{D}_T\) arrive sequentially, and only the current task's data \(\mathcal{D}_t\) are available when learning task \(t\). For a pre-trained weight matrix \(W_0 \in \mathbb{R}^{d \times k}\), O-LoRA \cite{wang2023olora} learns a separate low-rank update \(A_t B_t\) for each task, where \(A_t \in \mathbb{R}^{d \times r}\), \(B_t \in \mathbb{R}^{r\times k}\), and \(r \ll \min(d,k)\). After task \(t\), the adapted matrix is
 \[
 	W_t = W_0 + \sum_{i=1}^{t} \Delta W_i
 \]
@@ -201,20 +201,22 @@ Percentage reduction:
 
 \subsection{Comparison Summary}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
-\begin{tabular}{lrrr}
-\hline
-Method & Trainable Parameters & Reduction Ratio & Parameter Reduction \\
-\hline
+\small
+\caption{Trainable parameter comparison.}
+\label{tab:parameter-comparison}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedleft\arraybackslash}X>{\raggedleft\arraybackslash}X>{\raggedleft\arraybackslash}X@{}}
+\toprule
+Method & Trainable parameters & Reduction ratio & Parameter reduction \\
+\midrule
 Full Fine-Tuning & 1,048,576 & $1\times$ & $0\%$ \\
 LoRA ($r=4$) & 8,192 & $128\times$ & $99.21875\%$ \\
 LoRA ($r=8$) & 16,384 & $64\times$ & $98.4375\%$ \\
 LoRA ($r=16$) & 32,768 & $32\times$ & $96.875\%$ \\
-\hline
-\end{tabular}
-\caption{Trainable parameter comparison.}
-\label{tab:parameter-comparison}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 The results show that LoRA significantly reduces the number of trainable parameters compared to Full Fine-Tuning.
@@ -227,22 +229,24 @@ Trainable parameter count and GPU memory consumption are different concepts.
 
 Trainable parameters represent the number of model parameters updated during training, while GPU memory consumption includes all memory required for the training process.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
-\begin{tabular}{lll}
-\hline
+\small
+\caption{Training memory components.}
+\label{tab:memory-components}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{0.28\textwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
 Memory Component & Full Fine-Tuning & LoRA \\
-\hline
+\midrule
 Original weights & Trainable & Frozen \\
 Adapter weights & Not applicable & Trainable \\
 Gradients & For original weights & For adapter weights \\
 Optimizer states & For original weights & For adapter weights \\
 Activations & Required & Required \\
 Intermediate computations & Required & Required \\
-\hline
-\end{tabular}
-\caption{Training memory components.}
-\label{tab:memory-components}
+\bottomrule
+\end{tabularx}
 \end{table}
 
 Even though LoRA freezes the original weight matrix, it must still keep the original weights available for forward computation.
