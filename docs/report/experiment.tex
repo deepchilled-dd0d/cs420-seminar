@@ -1,0 +1,32 @@
+\section{Experiment}
+We compare LoRA fine-tuning with full fine-tuning of DistilRoBERTa on the four-class AG News classification task. Both runs use the same data split, preprocessing, training schedule, and evaluation procedure; the fine-tuning method and learning rate differ.
+
+\subsubsection{Experimental setup}
+Both notebooks use \texttt{distilbert/distilroberta-base} with \texttt{AutoModelForSequenceClassification} and \texttt{fancyzhx/ag\_news}. A stratified 10\% of the official training split is held out for validation (seed 42); the official test split is used only for final evaluation. Text is truncated to 256 tokens and batches are dynamically padded to a multiple of eight. Training uses one GPU, with BF16 when supported and FP16 otherwise. The smoke-test option is disabled in both configurations.
+
+\subsubsection{Configuration}
+\begin{table}[htbp]
+\centering
+\caption{Notebook training configurations.}
+\label{tab:setup}
+\begin{tabular}{lll}
+\hline
+\textbf{Setting} & \textbf{LoRA} & \textbf{Full fine-tuning} \\
+\hline
+Trainable parameters & LoRA adapters and classifier & Entire model \\
+Learning rate & $2\times10^{-4}$ & $2\times10^{-5}$ \\
+Epochs & 3 & 3 \\
+Training batch size (per device) & 8 & 8 \\
+Evaluation batch size (per device) & 16 & 16 \\
+Gradient accumulation steps & 4 & 4 \\
+Optimizer & \texttt{adamw\_torch} & \texttt{adamw\_torch} \\
+Weight decay & 0.01 & 0.01 \\
+Schedule and warmup & Linear, 6\% of steps & Linear, 6\% of steps \\
+Seed & 42 & 42 \\
+\hline
+\end{tabular}
+\end{table}
+
+The LoRA run uses \texttt{TaskType.SEQ\_CLS}, rank 8, scaling parameter $\alpha=16$, dropout 0.05, and no bias adaptation. It targets the \texttt{query} and \texttt{value} modules and also trains and saves the \texttt{classifier}. The baseline trains all encoder and classification-head parameters.
+
+Both notebooks evaluate at the end of each epoch, save checkpoints each epoch (retaining at most two), and restore the checkpoint with the highest validation macro F1. They report accuracy and macro F1 on the official test split, as well as per-class precision, recall, and F1. Both notebooks record training wall time and peak CUDA memory.
