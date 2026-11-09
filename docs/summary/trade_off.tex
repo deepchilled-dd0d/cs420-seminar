@@ -11,26 +11,26 @@ is the best method in every setting. A complete assessment must
 also consider model quality, memory consumption, training time,
 inference efficiency, and experimental limitations.
 
-This section combines the theoretical calculation in RE-03 with
-the evaluation results supplied in RE-05. The method details and
-pipeline comparison from RE-04 should be added at the marked
-locations once that task is available.
+This section combines our theoretical calculation with the
+evaluation results from our experiment. We will add our method
+details and pipeline comparison at the marked locations once they
+are ready.
 
 \subsection{Model Quality}
 
-The RE-05 evaluation contains 7,600 test examples distributed
+Our evaluation contains 7,600 test examples distributed
 evenly across four categories: World, Sports, Business, and
 Sci/Tech, with 1,900 examples per category. The reported overall
 test accuracy is 0.937632 (93.7632\%), and the macro F1-score is
 0.937617 (93.7617\%). The reported test loss is 0.192954.
 
-Table~\ref{tab:re05-classification} summarizes the per-category
+Table~\ref{tab:classification} summarizes the per-category
 classification results.
 
 \begin{table}[htbp]
 	\centering
-	\caption{RE-05 classification results by category}
-	\label{tab:re05-classification}
+	\caption{Our classification results by category}
+	\label{tab:classification}
 	\begin{tabular}{lrrrr}
 		\hline
 		Category      & Precision & Recall & F1-score & Support \\
@@ -43,6 +43,7 @@ classification results.
 		Macro average & 0.9377    & 0.9376 & 0.9376   & 7,600   \\
 		\hline
 	\end{tabular}
+	>>>>>>> refs/remotes/origin/main
 \end{table}
 
 Sports has the highest F1-score (0.9851), whereas Business has
@@ -60,7 +61,7 @@ these two categories are comparatively more difficult to
 distinguish in the evaluated dataset.
 
 These results provide evidence about the evaluated model's
-classification performance. However, the supplied RE-05 CSV
+classification performance. However, our supplied CSV
 files do not identify the LoRA rank used for this run and do not
 provide a Full Fine-Tuning baseline or results for multiple
 LoRA ranks. Therefore, the reported accuracy and F1-score must
@@ -71,7 +72,7 @@ and evaluation metrics is required to make those claims.
 
 \subsection{Memory Usage}
 
-RE-03 provides a theoretical comparison for one
+Our theoretical calculation provides a comparison for one
 $1024 \times 1024$ weight matrix. Under Full Fine-Tuning, all
 $1024 \times 1024$ entries are trainable:
 
@@ -88,13 +89,13 @@ $$
 $$
 
 The resulting parameter counts are shown in
-Table~\ref{tab:re03-parameters}.
+Table~\ref{tab:parameters}.
 
 \begin{table}[htbp]
 	\centering
-	\caption{RE-03 trainable-parameter calculation for one
+	\caption{Trainable-parameter calculation for one
 		$1024 \times 1024$ weight matrix}
-	\label{tab:re03-parameters}
+	\label{tab:parameters}
 	\begin{tabular}{lrrr}
 		\hline
 		Method           & Trainable parameters & Reduction ratio & Reduction  \\
@@ -105,6 +106,7 @@ Table~\ref{tab:re03-parameters}.
 		LoRA, $r=16$     & 32,768               & $32\times$      & 96.87500\% \\
 		\hline
 	\end{tabular}
+	>>>>>>> refs/remotes/origin/main
 \end{table}
 
 The calculation shows that LoRA can greatly reduce the number
@@ -116,8 +118,8 @@ must still be available for computation, and activations,
 temporary tensors, and other runtime allocations also consume
 memory.
 
-For the single matrix considered in RE-03, storing the original
-weights in FP32 requires
+For the single matrix considered in our calculation, storing the
+original weights in FP32 requires
 
 $$
 	1024 \times 1024 \times 4
@@ -127,20 +129,23 @@ $$
 
 This is only the storage requirement for that one matrix, not
 the total memory requirement of an entire model or training run.
-The RE-05 files supplied for this analysis do not report measured
+Our supplied files do not report measured
 GPU memory usage. Consequently, no empirical GPU-memory saving
 can be calculated from those files.
 
-% [RE-04 INSERTION POINT — MEMORY / QUANTIZED BASE MODEL]
-% Add the exact RE-04 method name and explanation here.
-% Describe how the frozen (possibly quantized) base weights are
-% stored, how the low-rank adapters are trained, and what memory
-% components this changes. Do not claim a measured memory saving
-% unless RE-04 or a benchmark reports an actual measurement.
+The method comparison describes LoRA and O-LoRA as keeping the
+pretrained weights frozen while training low-rank adapter factors.
+This reduces the trainable parameters and associated gradient and
+optimizer-state storage, but the base weights must still be stored
+and used. O-LoRA additionally retains an adapter for each task, so
+adapter storage grows with the number of tasks. The comparison does
+not specify quantization or report measured GPU memory, so it does
+not support a quantified memory-saving claim beyond the illustrative
+single-matrix calculation above.
 
 \subsection{Training Time}
 
-The RE-05 metrics file reports test evaluation runtime of
+Our metrics file reports test evaluation runtime of
 30.0006 seconds, with a throughput of 253.328 test samples per
 second and 15.833 test steps per second. These are evaluation
 statistics, not training-time measurements.
@@ -166,7 +171,7 @@ evaluation procedure.
 
 \subsection{Inference Efficiency}
 
-The RE-05 metrics file reports a test runtime of 30.0006 seconds
+Our metrics file reports a test runtime of 30.0006 seconds
 for 7,600 examples, corresponding to 253.328 samples per second.
 This provides an evaluation-throughput result for the reported
 run. It should not be treated as a direct comparison of LoRA
@@ -200,16 +205,18 @@ a separate adapter branch during inference. The trade-off is
 that independently switching adapters becomes less convenient,
 and merging may require additional temporary memory.
 
-% [RE-04 INSERTION POINT — INFERENCE PIPELINE AND ADAPTER MERGING]
-% Insert the exact RE-04 pipeline figure/reference and terminology.
-% Explain the group's demonstrated inference path, whether merging
-% is supported, and any limitations stated in RE-04. Add measured
-% latency only if the group has benchmark data; otherwise keep this
-% discussion qualitative.
+The method comparison describes merging a LoRA adapter into the
+base weights for inference, avoiding a separate adapter branch.
+For O-LoRA, task updates can be accumulated into the weights for
+inference, while individual task factors can be retained to support
+continued learning. This offers a deployment trade-off: merged
+weights simplify inference, whereas retaining separate factors
+preserves task-specific updates. The comparison provides no measured
+latency benchmark.
 
 \subsection{Experimental Risks and Limitations}
 
-The RE-05 results show strong overall classification performance
+Our results show strong overall classification performance
 on the supplied test set, but several limitations restrict the
 conclusions that can be drawn.
 
@@ -242,11 +249,12 @@ conclusions that can be drawn.
 	      F1-score, and the confusion matrix are therefore useful
 	      complementary measures.
 
-	\item \textbf{Limited scope of the RE-03 calculation:}
+	\item \textbf{Limited scope of our calculation:}
 	      The $1024 \times 1024$ calculation is an illustrative
 	      single-matrix example. It is not a measurement of the
 	      trainable-parameter count or GPU memory of the complete
-	      RE-05 model.
+	      model.
+	      >>>>>>> refs/remotes/origin/main
 \end{itemize}
 
 For stronger experimental evidence, future comparisons should
@@ -256,11 +264,13 @@ GPU memory, and inference latency. LoRA and Full Fine-Tuning
 should be evaluated under comparable conditions, and multiple
 runs should be considered where resources permit.
 
-% [RE-04 INSERTION POINT — METHOD-SPECIFIC LIMITATIONS]
-% Add any limitations explicitly observed in RE-04, such as
-% constraints of the demonstrated pipeline, quantization setup,
-% adapter compatibility, or merging procedure. Keep only points
-% supported by the RE-04 document or experiment.
+The method comparison notes that O-LoRA's orthogonality penalty
+encourages, but does not guarantee, orthogonal task subspaces or
+eliminate forgetting. It does not require replay data in the proposed
+method, but retaining one adapter per task increases storage as the
+task sequence grows. The LoRA and O-LoRA papers also evaluate
+different models, datasets, and settings, so their comparison is
+conceptual rather than a controlled performance ranking.
 
 \subsection{When LoRA May Not Be the Best Choice}
 
@@ -304,13 +314,13 @@ constraints.
 
 \subsection{Overall Discussion}
 
-The RE-03 calculation demonstrates the parameter-efficiency
+Our calculation demonstrates the parameter-efficiency
 potential of LoRA for a single $1024 \times 1024$ weight matrix:
 the trainable-parameter count is reduced by 99.21875\% at
 rank 4, 98.43750\% at rank 8, and 96.87500\% at rank 16
 relative to Full Fine-Tuning.
 
-The RE-05 evaluation reports 93.7632\% test accuracy and
+Our evaluation reports 93.7632\% test accuracy and
 0.937617 macro F1 over 7,600 balanced test examples. It also
 shows that performance differs by category, with Sports
 achieving the highest F1-score and Business the lowest.
@@ -319,17 +329,21 @@ LoRA rank or include a Full Fine-Tuning baseline, they should
 be interpreted as the performance of the evaluated run only,
 not as a controlled comparison between fine-tuning methods.
 
-The RE-05 test throughput provides an evaluation-performance
+Our test throughput provides an evaluation-performance
 measurement, but the available files do not report training
 time, peak GPU memory, or a separate inference-latency
-comparison. The RE-04 pipeline and adapter-merging analysis
+comparison. Our pipeline and adapter-merging analysis
 should complement these findings by explaining the method's
 implementation and deployment trade-offs.
 
-% [RE-04 INSERTION POINT — FINAL SYNTHESIS]
-% Once RE-04 is available, add a short comparison of the
-% demonstrated adapter/quantization approaches and connect it
-% to the memory and inference discussion above.
+The method comparison clarifies that LoRA targets parameter-efficient
+adaptation of a task, while O-LoRA extends the low-rank approach to
+sequential tasks by adding task-specific adapters and a penalty to
+limit interference. This extension trades growing adapter storage
+for retaining task-specific updates, and its penalty does not ensure
+that forgetting is eliminated. These method-level trade-offs
+complement our parameter-count calculation, but do not add measured
+GPU-memory or inference-latency results.
 
 Overall, LoRA offers a substantial reduction in trainable
 parameters, but its practical advantage must be assessed
@@ -340,8 +354,8 @@ inference requirements, and experimental reliability.
 
 LoRA is a useful parameter-efficient fine-tuning approach
 when reducing trainable parameters and optimizer-related
-memory requirements is important. The RE-03 calculation
-illustrates this advantage, while the RE-05 results provide
+memory requirements is important. Our calculation
+illustrates this advantage, while our results provide
 a classification evaluation with 93.7632\% accuracy and
 0.937617 macro F1 on the reported test set.
 
