@@ -1,226 +1,355 @@
 \section{Trade-off Analysis of LoRA}
+\label{sec:lora-tradeoffs}
 
 \subsection{Overview}
 
 LoRA (Low-Rank Adaptation) is a parameter-efficient fine-tuning
-method that reduces the number of trainable parameters by freezing
-the original pretrained weights and introducing trainable
-low-rank matrices.
+approach that freezes the pretrained weight matrix and learns a
+low-rank update. It can reduce the number of trainable parameters
+and the associated gradient and optimizer-state requirements.
+However, parameter efficiency alone does not establish that LoRA
+is the best method in every setting. A complete assessment must
+also consider model quality, memory consumption, training time,
+inference efficiency, and experimental limitations.
 
-Although LoRA offers significant advantages in training efficiency
-and memory usage, it also introduces trade-offs in model quality,
-training time, inference efficiency, and experimental reliability.
-
-This section analyzes these trade-offs and identifies situations
-where LoRA may not be the most suitable approach.
+This section combines the theoretical calculation in RE-03 with
+the evaluation results supplied in RE-05. The method details and
+pipeline comparison from RE-04 should be added at the marked
+locations once that task is available.
 
 \subsection{Model Quality}
 
-LoRA can achieve competitive performance compared to Full
-Fine-Tuning while updating only a small fraction of the original
-model parameters.
+The RE-05 evaluation contains 7,600 test examples distributed
+evenly across four categories: World, Sports, Business, and
+Sci/Tech, with 1,900 examples per category. The reported overall
+test accuracy is 0.937632 (93.7632\%), and the macro F1-score is
+0.937617 (93.7617\%). The reported test loss is 0.192954.
 
-However, its adaptation capacity depends on the selected rank
-and the placement of adapter modules.
+Table~\ref{tab:re05-classification} summarizes the per-category
+classification results.
 
-A low rank may limit the model's ability to represent complex
-weight updates, potentially reducing performance on tasks that
-require substantial changes to the pretrained model.
+\begin{table}[htbp]
+\centering
+\caption{RE-05 classification results by category}
+\label{tab:re05-classification}
+\begin{tabular}{lrrrr}
+\hline
+Category & Precision & Recall & F1-score & Support \\
+\hline
+World    & 0.9552 & 0.9421 & 0.9486 & 1,900 \\
+Sports   & 0.9817 & 0.9884 & 0.9851 & 1,900 \\
+Business & 0.9123 & 0.8974 & 0.9047 & 1,900 \\
+Sci/Tech & 0.9017 & 0.9226 & 0.9121 & 1,900 \\
+\hline
+Macro average & 0.9377 & 0.9376 & 0.9376 & 7,600 \\
+\hline
+\end{tabular}
+\end{table}
 
-Increasing the rank provides greater adaptation capacity but
-also increases the number of trainable parameters.
+Sports has the highest F1-score (0.9851), whereas Business has
+the lowest F1-score (0.9047). Sci/Tech has the lowest precision
+(0.9017). These results indicate that performance is not identical
+across categories, even though the test set is balanced.
 
-Therefore, LoRA does not guarantee the same performance as
-Full Fine-Tuning in every task. Model quality must be evaluated
-using appropriate validation and test metrics.
+The prediction-level file contains 7,126 correct predictions and
+474 incorrect predictions out of 7,600 examples, corresponding
+to an accuracy of approximately 93.76\%. The largest
+cross-category confusions occur between Business and Sci/Tech:
+139 Business examples are predicted as Sci/Tech, while 108
+Sci/Tech examples are predicted as Business. This suggests that
+these two categories are comparatively more difficult to
+distinguish in the evaluated dataset.
+
+These results provide evidence about the evaluated model's
+classification performance. However, the supplied RE-05 CSV
+files do not identify the LoRA rank used for this run and do not
+provide a Full Fine-Tuning baseline or results for multiple
+LoRA ranks. Therefore, the reported accuracy and F1-score must
+not be interpreted as proof that one LoRA rank is better than
+another, or that LoRA outperforms Full Fine-Tuning. A controlled
+comparison using the same model, data split, training settings,
+and evaluation metrics is required to make those claims.
 
 \subsection{Memory Usage}
 
-One of LoRA's main advantages is its reduced memory requirement
-during training.
+RE-03 provides a theoretical comparison for one
+$1024 \times 1024$ weight matrix. Under Full Fine-Tuning, all
+$1024 \times 1024$ entries are trainable:
 
-By freezing the original pretrained weights, LoRA avoids
-storing gradients and optimizer states for those frozen
-parameters.
+$$
+N_{\mathrm{Full}} = 1024 \times 1024 = 1,048,576.
+$$
 
-The calculation in RE-03 illustrates this advantage for a
-$1024 \times 1024$ weight matrix:
+For LoRA, the original matrix is frozen and the update is
+represented by two trainable matrices with dimensions
+$r \times 1024$ and $1024 \times r$. Thus,
 
-\begin{itemize}
-  \item Full Fine-Tuning: 1,048,576 trainable parameters.
-  \item LoRA with rank 4: 8,192 trainable parameters.
-  \item LoRA with rank 8: 16,384 trainable parameters.
-  \item LoRA with rank 16: 32,768 trainable parameters.
-\end{itemize}
+$$
+N_{\mathrm{LoRA}} = 1024r + 1024r = 2048r.
+$$
 
-For rank 4, the number of trainable parameters is reduced
-by 99.21875\% compared to Full Fine-Tuning.
+The resulting parameter counts are shown in
+Table~\ref{tab:re03-parameters}.
 
-However, this reduction does not imply an equivalent reduction
-in total GPU memory consumption.
+\begin{table}[htbp]
+\centering
+\caption{RE-03 trainable-parameter calculation for one
+$1024 \times 1024$ weight matrix}
+\label{tab:re03-parameters}
+\begin{tabular}{lrrr}
+\hline
+Method & Trainable parameters & Reduction ratio & Reduction \\
+\hline
+Full Fine-Tuning & 1,048,576 & $1\times$ & 0\% \\
+LoRA, $r=4$  & 8,192  & $128\times$ & 99.21875\% \\
+LoRA, $r=8$  & 16,384 & $64\times$  & 98.43750\% \\
+LoRA, $r=16$ & 32,768 & $32\times$  & 96.87500\% \\
+\hline
+\end{tabular}
+\end{table}
 
-The original model weights must still be stored, while
-activations, temporary tensors, and computational overhead
-continue to consume memory.
+The calculation shows that LoRA can greatly reduce the number
+of parameters that must be updated. This can also reduce the
+memory required for trainable-parameter gradients and optimizer
+states. Nevertheless, trainable-parameter count is not the same
+as total GPU memory consumption. The frozen pretrained weights
+must still be available for computation, and activations,
+temporary tensors, and other runtime allocations also consume
+memory.
 
-Actual memory usage also depends on precision, batch size,
-sequence length, model architecture, and optimizer configuration.
+For the single matrix considered in RE-03, storing the original
+weights in FP32 requires
+
+$$
+1024 \times 1024 \times 4
+= 4,194,304 \text{ bytes}
+\approx 4 \text{ MiB}.
+$$
+
+This is only the storage requirement for that one matrix, not
+the total memory requirement of an entire model or training run.
+The RE-05 files supplied for this analysis do not report measured
+GPU memory usage. Consequently, no empirical GPU-memory saving
+can be calculated from those files.
+
+% [RE-04 INSERTION POINT — MEMORY / QUANTIZED BASE MODEL]
+% Add the exact RE-04 method name and explanation here.
+% Describe how the frozen (possibly quantized) base weights are
+% stored, how the low-rank adapters are trained, and what memory
+% components this changes. Do not claim a measured memory saving
+% unless RE-04 or a benchmark reports an actual measurement.
 
 \subsection{Training Time}
 
-LoRA can reduce training time because fewer parameters require
-gradient computation, optimizer updates, and optimizer-state
-storage.
+The RE-05 metrics file reports test evaluation runtime of
+30.0006 seconds, with a throughput of 253.328 test samples per
+second and 15.833 test steps per second. These are evaluation
+statistics, not training-time measurements.
 
-Nevertheless, the original model still participates in
-forward computation, and backward computation is still
-required to obtain gradients for the trainable adapters.
+The supplied CSV files do not contain training duration,
+epoch duration, or step-time measurements. Therefore, they do
+not support a quantitative claim that LoRA trained faster than
+Full Fine-Tuning in this experiment.
 
-Consequently, training speed improvements depend on the model,
-hardware, dataset, batch size, and implementation.
+In principle, LoRA can reduce the work associated with
+computing and storing gradients for frozen base-model weights
+and updating optimizer states for those weights. However, the
+base model still participates in the forward computation, and
+training still requires computation to obtain gradients for
+the adapter parameters. Actual training speed depends on the
+model architecture, sequence length, batch size, hardware,
+precision, implementation, and training configuration.
 
-LoRA should not be assumed to be faster in every environment.
-For small models or short training runs, the time savings
-may be relatively limited.
+A fair training-time comparison should measure the elapsed
+training time under comparable conditions, including the same
+dataset, number of training steps, batch size, hardware, and
+evaluation procedure.
 
 \subsection{Inference Efficiency}
 
-LoRA introduces additional low-rank computations when its
-adapters remain separate from the original weights.
+The RE-05 metrics file reports a test runtime of 30.0006 seconds
+for 7,600 examples, corresponding to 253.328 samples per second.
+This provides an evaluation-throughput result for the reported
+run. It should not be treated as a direct comparison of LoRA
+and Full Fine-Tuning inference speed because the CSV files do
+not provide a baseline, a per-example latency benchmark, or
+separate measurements for merged and unmerged adapters.
 
-The updated weight matrix can be expressed as:
+In a standard LoRA formulation, the adapted weight can be
+expressed as
 
-\[
-W' = W + BA
-\]
+$$
+W' = W + \frac{\alpha}{r}BA,
+$$
 
-where $W$ is the frozen pretrained weight matrix and
-$A$ and $B$ are the trainable low-rank matrices.
+where $W$ is the frozen pretrained weight matrix, $A$ and $B$
+are trainable low-rank matrices, $r$ is the rank, and
+$\alpha$ is the scaling parameter.
 
-To reduce additional inference overhead, the adapter weights
-can be merged into the original weights:
+An adapter may remain separate from the base model during
+inference, in which case its contribution is applied alongside
+the base computation. Alternatively, the update can be merged
+into the base weights:
 
-\[
-W_{\text{merged}} = W + BA
-\]
+$$
+W_{\mathrm{merged}} =
+W + \frac{\alpha}{r}BA.
+$$
 
-After merging, inference can use the updated weight matrix
-without separately applying the adapter computation.
+After merging, the adapted weight can be used directly, avoiding
+a separate adapter branch during inference. The trade-off is
+that independently switching adapters becomes less convenient,
+and merging may require additional temporary memory.
 
-However, merging reduces the flexibility of independently
-switching between adapters and may require additional memory
-during the merging process.
-
-Therefore, inference efficiency depends on the deployment
-strategy and whether adapters are merged.
+% [RE-04 INSERTION POINT — INFERENCE PIPELINE AND ADAPTER MERGING]
+% Insert the exact RE-04 pipeline figure/reference and terminology.
+% Explain the group's demonstrated inference path, whether merging
+% is supported, and any limitations stated in RE-04. Add measured
+% latency only if the group has benchmark data; otherwise keep this
+% discussion qualitative.
 
 \subsection{Experimental Risks and Limitations}
 
-Several factors can affect the reliability and reproducibility
-of LoRA experiments.
+The RE-05 results show strong overall classification performance
+on the supplied test set, but several limitations restrict the
+conclusions that can be drawn.
 
 \begin{itemize}
-  \item \textbf{Hyperparameter sensitivity:}
-  Results depend on rank, learning rate, batch size, and
-  other training configurations.
+  \item \textbf{No rank-specific comparison in the supplied
+  metrics:} The CSV files do not identify the rank used for the
+  reported run or provide results for multiple ranks. They
+  therefore cannot establish how changing rank affects quality.
 
-  \item \textbf{Rank selection:}
-  An excessively low rank may limit adaptation capacity,
-  while a high rank increases computational and memory costs.
+  \item \textbf{No Full Fine-Tuning baseline:} Without a
+  comparable Full Fine-Tuning result, the experiment cannot
+  demonstrate that LoRA achieves equal or better quality, or
+  quantify a quality gap between the methods.
 
-  \item \textbf{Dataset quality:}
-  Limited, noisy, or imbalanced training data may lead
-  to poor generalization.
+  \item \textbf{No measured training time or GPU memory:}
+  The metrics file reports test runtime and throughput, but
+  not training duration or peak GPU memory. Efficiency claims
+  about these two quantities remain theoretical unless further
+  measurements are supplied.
 
-  \item \textbf{Overfitting:}
-  The model may perform well on training data but fail
-  to generalize to unseen examples.
+  \item \textbf{Single reported evaluation:} The supplied
+  metrics contain one set of aggregate results. No repeated
+  runs, random-seed comparison, or variability estimates are
+  included, so run-to-run stability cannot be assessed.
 
-  \item \textbf{Reproducibility:}
-  Different random seeds, hardware, software versions,
-  and configurations may produce different results.
+  \item \textbf{Category-dependent errors:} Business and
+  Sci/Tech account for the largest mutual confusion in the
+  prediction file. Overall accuracy alone can hide these
+  category-specific weaknesses; per-class precision, recall,
+  F1-score, and the confusion matrix are therefore useful
+  complementary measures.
 
-  \item \textbf{Evaluation limitations:}
-  A single experiment or evaluation metric is insufficient
-  to establish that LoRA is consistently better than
-  Full Fine-Tuning.
+  \item \textbf{Limited scope of the RE-03 calculation:}
+  The $1024 \times 1024$ calculation is an illustrative
+  single-matrix example. It is not a measurement of the
+  trainable-parameter count or GPU memory of the complete
+  RE-05 model.
 \end{itemize}
 
-A reliable comparison should use the same datasets,
-evaluation metrics, and comparable experimental settings.
-Recording training time and actual GPU memory consumption
-is also important.
+For stronger experimental evidence, future comparisons should
+record the model and adapter configuration, LoRA rank, target
+modules, dataset split, random seed, training duration, peak
+GPU memory, and inference latency. LoRA and Full Fine-Tuning
+should be evaluated under comparable conditions, and multiple
+runs should be considered where resources permit.
 
-Where possible, multiple random seeds should be used
-to evaluate result stability.
+% [RE-04 INSERTION POINT — METHOD-SPECIFIC LIMITATIONS]
+% Add any limitations explicitly observed in RE-04, such as
+% constraints of the demonstrated pipeline, quantization setup,
+% adapter compatibility, or merging procedure. Keep only points
+% supported by the RE-04 document or experiment.
 
 \subsection{When LoRA May Not Be the Best Choice}
 
-Despite its advantages, LoRA is not always the optimal
-fine-tuning method.
-
-The following situations may favor Full Fine-Tuning
-or alternative adaptation methods:
+Although LoRA is parameter-efficient, it is not automatically
+the best choice for every task.
 
 \begin{itemize}
-  \item \textbf{Extensive model adaptation:}
-  Tasks requiring substantial changes across many model
-  parameters may benefit from Full Fine-Tuning.
+  \item \textbf{The task requires extensive parameter adaptation:}
+  If the task requires broad changes to the pretrained model,
+  Full Fine-Tuning may provide greater flexibility because it
+  can update all model weights.
 
-  \item \textbf{Insufficient adaptation capacity:}
-  If LoRA with practical rank settings cannot achieve
-  the required performance, Full Fine-Tuning or higher-rank
-  adaptation may be preferable.
+  \item \textbf{The chosen rank is insufficient:}
+  If a low-rank update cannot reach the required validation
+  performance, a higher rank or a different fine-tuning method
+  may be necessary. Increasing rank also increases trainable
+  parameters and associated costs.
 
-  \item \textbf{Small models with sufficient resources:}
-  When GPU memory and computational resources are not
-  significant constraints, Full Fine-Tuning may offer
-  a simpler training workflow.
+  \item \textbf{Resource constraints are not important:}
+  For a relatively small model with sufficient GPU memory and
+  compute, the parameter-efficiency advantage of LoRA may be
+  less important than the simplicity of Full Fine-Tuning.
 
-  \item \textbf{Strict inference requirements:}
-  Applications with strict latency or deployment constraints
-  may prefer merged adapters or directly fine-tuned models.
+  \item \textbf{Deployment constraints dominate:}
+  If an application requires a particular inference or adapter
+  management workflow, separate adapters may introduce
+  operational complexity. Merging or another deployment
+  strategy may be more appropriate.
 
-  \item \textbf{Unsatisfactory experimental results:}
-  If LoRA consistently fails to meet the required quality
-  after reasonable hyperparameter tuning, alternative
-  fine-tuning strategies should be considered.
+  \item \textbf{Experiments do not meet the quality target:}
+  If controlled evaluation shows that LoRA does not meet the
+  task's quality requirements after reasonable configuration
+  tuning, Full Fine-Tuning or another adaptation method should
+  be considered.
 \end{itemize}
 
-These situations do not mean that LoRA always performs
-worse. The appropriate method depends on the task,
-available resources, and deployment requirements.
+These cases do not imply that LoRA will necessarily perform
+poorly. The appropriate method depends on the task's adaptation
+requirements, available compute resources, and deployment
+constraints.
 
 \subsection{Overall Discussion}
 
-The results from RE-03 demonstrate that LoRA can
-substantially reduce the number of trainable parameters.
+The RE-03 calculation demonstrates the parameter-efficiency
+potential of LoRA for a single $1024 \times 1024$ weight matrix:
+the trainable-parameter count is reduced by 99.21875\% at
+rank 4, 98.43750\% at rank 8, and 96.87500\% at rank 16
+relative to Full Fine-Tuning.
 
-The experimental findings from RE-04 and RE-05 should
-be considered alongside these calculations to evaluate
-model quality, training efficiency, and practical limitations.
+The RE-05 evaluation reports 93.7632\% test accuracy and
+0.937617 macro F1 over 7,600 balanced test examples. It also
+shows that performance differs by category, with Sports
+achieving the highest F1-score and Business the lowest.
+However, because the supplied results do not identify the
+LoRA rank or include a Full Fine-Tuning baseline, they should
+be interpreted as the performance of the evaluated run only,
+not as a controlled comparison between fine-tuning methods.
 
-In particular, parameter reduction alone is not sufficient
-to determine the overall effectiveness of LoRA.
+The RE-05 test throughput provides an evaluation-performance
+measurement, but the available files do not report training
+time, peak GPU memory, or a separate inference-latency
+comparison. The RE-04 pipeline and adapter-merging analysis
+should complement these findings by explaining the method's
+implementation and deployment trade-offs.
 
-A complete evaluation must consider model performance,
-actual GPU memory consumption, training time, inference
-efficiency, and experimental reliability.
+% [RE-04 INSERTION POINT — FINAL SYNTHESIS]
+% Once RE-04 is available, add a short comparison of the
+% demonstrated adapter/quantization approaches and connect it
+% to the memory and inference discussion above.
+
+Overall, LoRA offers a substantial reduction in trainable
+parameters, but its practical advantage must be assessed
+alongside model quality, actual resource measurements,
+inference requirements, and experimental reliability.
 
 \subsection{Conclusion}
 
-LoRA provides an effective parameter-efficient alternative
-to Full Fine-Tuning, particularly when computational
-resources and GPU memory are limited.
+LoRA is a useful parameter-efficient fine-tuning approach
+when reducing trainable parameters and optimizer-related
+memory requirements is important. The RE-03 calculation
+illustrates this advantage, while the RE-05 results provide
+a classification evaluation with 93.7632\% accuracy and
+0.937617 macro F1 on the reported test set.
 
-Its main advantages are reduced trainable parameters,
-lower gradient and optimizer-state requirements, and
-the flexibility of using separate adapters.
-
-However, these benefits involve trade-offs in adaptation
-capacity, training performance, and deployment complexity.
-
-LoRA is therefore not universally superior to Full
-Fine-Tuning. The final choice should be based on
-experimental evidence and the specific requirements
-of the application.
+Nevertheless, the available results do not establish that
+LoRA outperforms Full Fine-Tuning, nor do they quantify
+training-time or GPU-memory savings. Those conclusions
+require controlled baselines and direct measurements.
+The final choice between LoRA and Full Fine-Tuning should
+therefore depend on the required model quality, available
+resources, inference constraints, and experimental evidence.
