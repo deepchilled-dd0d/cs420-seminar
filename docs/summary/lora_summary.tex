@@ -8,6 +8,386 @@ Low-Rank Adaptation (LoRA) is a parameter-efficient\footnote{Parameter-efficient
 
 Full fine-tuning updates all model parameters. For a large model such as GPT-3 (175 billion parameters), this makes training expensive and requires storing a separate full-size checkpoint for each task. Other parameter-efficient methods reduce task-specific storage, but some add inference latency or use part of the available context window.
 
+\subsubsection{Motivation}
+
+Li et al. define intrinsic dimension as the codimension of the solution set: if the full parameter space has dimension $D$ and the solution set has dimension $s$, then $D=d_{\mathrm{int}}+s$. Their random-subspace formulation keeps the initialization $\theta_0^{(D)}\in\mathbb R^D$ and projection $P\in\mathbb R^{D\times d}$ fixed while optimizing lower-dimensional coordinates $\theta^{(d)}\in\mathbb R^d$. At the final solution,
+\[
+	\boxed{\theta_*^{(D)}=\theta_0^{(D)}+P\theta_*^{(d)}}.
+\]
+Figure~\ref{fig:intrinsic_dimension} illustrates the case $D=3$, $s=1$, and $d=d_{\mathrm{int}}=2$. This intersection is a dimension-counting illustration: Li et al. establish almost-sure intersection at the codimension threshold for hyperplane solution sets, while arbitrary solution-set topologies need not intersect.
+
+% ==========================================================
+% Figure 1: Intrinsic dimension
+% ==========================================================
+
+\begin{figure}[htbp]
+	\centering
+
+	\begin{tikzpicture}[
+			x=1cm,
+			y=1cm,
+			>=Stealth,
+			font=\small,
+			axis/.style={->,semithick},
+			update/.style={->,semithick},
+			solution/.style={
+					line width=1.2pt,
+					dash pattern=on .5pt off 3pt,
+					line cap=round
+				},
+			plane/.style={
+					fill=gray!25,
+					fill opacity=1,
+					draw=black!70,
+					draw opacity=1,
+					line width=.8pt
+				},
+			point/.style={
+					circle,
+					fill=black,
+					inner sep=1.6pt
+				}
+		]
+
+		% ------------------------------------------------------
+		% (a) Full parameter space
+		% ------------------------------------------------------
+		\begin{scope}[shift={(0,0)}]
+
+			% Negative theta_1 direction
+			\draw[semithick] (-1.25,0) -- (0,0);
+
+			% Positive theta_1 direction
+			\draw[axis] (0,0) -- (2.15,0)
+			node[right] {$\theta_1$};
+
+			% Negative theta_2 direction
+			\draw[semithick] (0,-.5) -- (0,0);
+
+			% Positive theta_2 direction
+			\draw[axis] (0,0) -- (0,2.9)
+			node[above] {$\theta_2$};
+
+			% Negative theta_3 direction
+			\draw[semithick] (1.3,.86) -- (0,0);
+
+			% Positive theta_3 direction
+			\draw[axis] (0,0) -- (-1.3,-.86)
+			node[below left] {$\theta_3$};
+
+			% Initialization and final solution
+			\coordinate (theta0L) at (.78,.65);
+			\coordinate (thetaStarL) at (-.58,1.45);
+
+			% Optimization displacement
+			\draw[update] (theta0L) -- (thetaStarL);
+
+			% Points
+			\node[point] at (theta0L) {};
+			\node[point] at (thetaStarL) {};
+
+			% Labels
+			\node[below right=2pt] at (theta0L)
+			{$\theta_0^{(D)}$};
+
+			\node[above left=2pt] at (thetaStarL)
+			{$\theta_*^{(D)}$};
+
+			% Panel heading
+			\node[font=\bfseries] at (.35,3.65)
+			{(a) Full parameter space};
+
+			\node at (.4,-1.6) {$D=3$};
+
+		\end{scope}
+
+
+		% ------------------------------------------------------
+		% (b) Affine optimization subspace
+		% ------------------------------------------------------
+		\begin{scope}[shift={(7.2,0)}]
+
+			% --------------------------------------------------
+			% Coordinate axes
+			% --------------------------------------------------
+
+			% Negative theta_1 direction
+			\draw[semithick] (-1.25,0) -- (0,0);
+
+			% Positive theta_1 direction
+			\draw[axis] (0,0) -- (2.15,0)
+			node[right] {$\theta_1$};
+
+			% Negative theta_2 direction
+			\draw[semithick] (0,-.5) -- (0,0);
+
+			% Positive theta_2 direction
+			\draw[axis] (0,0) -- (0,2.9)
+			node[above right] {$\theta_2$};
+
+			% Negative theta_3 direction
+			\draw[semithick] (1.3,.86) -- (0,0);
+
+			% Positive theta_3 direction
+			\draw[axis] (0,0) -- (-1.3,-.86)
+			node[below left] {$\theta_3$};
+
+			% --------------------------------------------------
+			% Opaque two-dimensional affine plane
+			% --------------------------------------------------
+			\coordinate (A) at (-.95,.05);
+			\coordinate (B) at (2.25,.55);
+			\coordinate (C) at (.70,2.35);
+			\coordinate (E) at (-2.50,1.85);
+
+			\filldraw[plane]
+			(A) -- (B) -- (C) -- (E) -- cycle;
+
+			% --------------------------------------------------
+			% Initialization and final solution
+			% --------------------------------------------------
+			\coordinate (theta0R) at (.78,.65);
+			\coordinate (thetaStarR) at (-.58,1.45);
+
+			% Entry point of the solution line into the plane
+			\coordinate (solutionEntry) at (-1.00687,.11603);
+
+			% --------------------------------------------------
+			% One-dimensional solution set
+			% --------------------------------------------------
+
+			% Solid portion below the surface
+			\draw[semithick]
+			(-1.156,-.35) -- (solutionEntry);
+
+			% Sparse dotted portion behind the surface,
+			% ending exactly at the final solution
+			\draw[solution]
+			(solutionEntry) -- (thetaStarR);
+
+			% Solid portion above the final solution
+			\draw[semithick]
+			(thetaStarR) -- (-.116,2.9);
+
+			% --------------------------------------------------
+			% Optimization displacement inside the plane
+			% --------------------------------------------------
+			\draw[update]
+			(theta0R) -- (thetaStarR)
+			node[pos=.48,above right,
+				fill=white,inner sep=2pt]
+			{$P\theta_*^{(d)}$};
+
+			% Points
+			\node[point] at (theta0R) {};
+			\node[point] at (thetaStarR) {};
+
+			% Point labels
+			\node[below right=2pt] at (theta0R)
+			{$\theta_0^{(D)}$};
+
+			\node[above left=2pt] at (thetaStarR)
+			{$\theta_*^{(D)}$};
+
+			% Panel heading
+			\node[font=\bfseries] at (.35,3.65)
+			{(b) Affine optimization subspace};
+
+			% Parameterization
+			\node[align=center] at (.35,-1.45) {
+				$\theta^{(D)}=\theta_0^{(D)}+P\theta^{(d)}$
+			};
+
+			% Dimension relationship
+			\node[align=center] at (.35,-2.15) {
+				$D=d_{\mathrm{int}}+s=2+1=3$
+			};
+
+		\end{scope}
+
+	\end{tikzpicture}
+
+	\caption{
+		Geometric illustration of intrinsic dimensionality,
+		adapted from Li et al.~(2018).
+		The opaque shaded affine plane has dimension $d=2$
+		in the full parameter space $\mathbb R^3$.
+		The one-dimensional solution set $\mathcal S$ is
+		represented by a solid line outside the plane and
+		a sparse dotted line inside it, intersecting the
+		plane at $\theta_*^{(D)}$.
+		In this example, $d_{\mathrm{int}}=D-s=2$.
+		The intersection illustrates dimension counting
+		and does not imply that every arbitrary solution set
+		intersects every subspace of dimension $D-s$.
+	}
+	\label{fig:intrinsic_dimension}
+
+\end{figure}
+
+The low-dimensional fine-tuning results motivate LoRA, but do not establish that weight updates have low matrix rank. Figure~\ref{fig:lora_motivation} summarizes the progression from low-rank observations to LoRA's hypothesis and parameterization.
+
+
+% ==========================================================
+% Figure 2: Motivation for LoRA
+% ==========================================================
+
+\begin{figure}[htbp]
+	\centering
+
+	% IMPORTANT: Do not insert blank lines inside this
+	% tikzpicture option list.
+	\begin{tikzpicture}[
+			>=Stealth,
+			font=\small,
+			node distance=5mm,
+			box/.style={
+					draw=black!70,
+					fill=gray!8,
+					rounded corners=2pt,
+					text width=12.2cm,
+					align=left,
+					inner sep=7pt
+				},
+			hypothesis/.style={
+					box,
+					dashed,
+					fill=gray!3
+				},
+			method/.style={
+					box,
+					fill=gray!17
+				},
+			arrow/.style={
+					->,
+					semithick
+				}
+		]
+
+		% --------------------------------------------------
+		% 1. Low-rank structure
+		% --------------------------------------------------
+		\node[box] (n1) {
+			\textbf{1. Low-rank structure in machine learning}
+
+			Many learning problems exhibit intrinsic low-rank
+			structure. Overparameterized neural networks can
+			also develop low-rank properties after training,
+			and previous work has explicitly exploited these
+			properties through low-rank constraints.
+
+			\hfill{\footnotesize
+				\href{https://arxiv.org/abs/1906.05392}
+				{Oymak et al., 2019};
+				\href{https://arxiv.org/abs/2106.09685}
+				{Hu et al., 2021, Sec.~6}
+			}
+		};
+
+
+		% --------------------------------------------------
+		% 2. Intrinsic dimensionality of fine-tuning
+		% --------------------------------------------------
+		\node[box,below=of n1] (n2) {
+			\textbf{2. Low intrinsic dimensionality of fine-tuning}
+
+			Pretrained language models can be fine-tuned
+			effectively through low-dimensional
+			reparameterizations of their parameter space.
+
+			\hfill{\footnotesize
+				\href{https://aclanthology.org/2021.acl-long.568/}
+				{Aghajanyan et al., 2021}
+			}
+		};
+
+
+		% --------------------------------------------------
+		% 3. LoRA hypothesis
+		% --------------------------------------------------
+		\node[hypothesis,below=of n2] (n3) {
+			\textbf{3. LoRA hypothesis: low-rank weight updates}
+
+			Do downstream tasks require only low-rank
+			changes to pretrained weight matrices?
+
+			\[
+				\operatorname{rank}(\Delta W)
+				\ll \min(m,n).
+			\]
+
+			Low-dimensional fine-tuning motivates this
+			hypothesis, but does not imply it:
+			intrinsic dimension and matrix rank are distinct
+			quantities.
+
+			\hfill{\footnotesize
+				\href{https://arxiv.org/abs/2106.09685}
+				{Hu et al., 2021; ICLR 2022}
+			}
+		};
+
+
+		% --------------------------------------------------
+		% 4. LoRA method and consequences
+		% --------------------------------------------------
+		\node[method,below=of n3] (n4) {
+			\textbf{4. LoRA: low-rank parameterization}
+
+			Freeze the pretrained matrix and optimize only
+			its low-rank update:
+
+			\[
+				W=W_0+\Delta W=W_0+BA,
+			\]
+
+			\[
+				W_0\in\mathbb R^{m\times n},
+				\qquad
+				B\in\mathbb R^{m\times r},
+				\qquad
+				A\in\mathbb R^{r\times n},
+				\qquad
+				r\ll\min(m,n).
+			\]
+
+			Fewer trainable parameters, reduced optimizer-state
+			memory, task-specific adapters, and the ability to
+			merge $BA$ into $W_0$ for inference.
+
+			\hfill{\footnotesize
+				\href{https://arxiv.org/abs/2106.09685}
+				{Hu et al., 2021; ICLR 2022}
+			}
+		};
+
+
+		% --------------------------------------------------
+		% Connections
+		% --------------------------------------------------
+		\draw[arrow] (n1.south) -- (n2.north);
+
+		% Dashed transition: motivation, not implication
+		\draw[arrow,dashed] (n2.south) -- (n3.north);
+
+		\draw[arrow] (n3.south) -- (n4.north);
+
+	\end{tikzpicture}
+
+	\caption{
+		Conceptual progression motivating Low-Rank Adaptation.
+		Observations of low-rank structure in machine learning
+		and low intrinsic dimensionality in language-model
+		fine-tuning motivate the hypothesis that task-specific
+		weight updates have low intrinsic rank.
+		The dashed transition indicates a hypothesis rather
+		than a mathematical implication.
+		LoRA implements this hypothesis through trainable
+		low-rank factors while freezing pretrained weights.
+	}
+	\label{fig:lora_motivation}
+\end{figure}
+
 \subsubsection{Solution}
 
 Motivated by evidence that model adaptation can take place in a low-dimensional subspace, the LoRA authors hypothesize that the required weight updates have low intrinsic rank.\footnote{Here, low intrinsic rank means that the task-specific change to a weight matrix can be represented effectively by a product of two matrices with a small shared dimension.} LoRA therefore represents the update to selected weight matrices with two trainable, low-rank matrices while keeping the original weights fixed.
