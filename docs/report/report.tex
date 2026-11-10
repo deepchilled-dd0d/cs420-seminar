@@ -6,19 +6,28 @@
 \usepackage[english]{babel}
 \usepackage{lmodern}
 \usepackage{microtype}
+\usepackage[letterpaper,margin=0.8in]{geometry}
 
 \usepackage{amsmath,amssymb,mathtools}
 \usepackage{graphicx}
 \graphicspath{{../assets/}}
 \usepackage{booktabs,tabularx}
+\usepackage{float}
 \usepackage{enumitem}
-\usepackage{multicol}
 
 \usepackage[style=lncs,backend=biber,natbib=true]{biblatex}
 \addbibresource{references.bib}
 
 \usepackage[colorlinks=true]{hyperref}
 \usepackage[nameinlink,noabbrev]{cleveref}
+
+% Use distinct block headings for the method's paragraph-level topics.
+\makeatletter
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}%
+  {-10\p@ \@plus -3\p@ \@minus -2\p@}%
+  {4\p@ \@plus 1\p@}%
+  {\normalfont\normalsize\bfseries}}
+\makeatother
 
 \title{LoRA and O-LoRA: Parameter-Efficient Fine-Tuning of Large Models}
 \titlerunning{LoRA and O-LoRA}
@@ -28,16 +37,11 @@
 \begin{document}
 \maketitle
 \input{abstract}
-
-\begin{multicols}{2}
-	\sloppy
-	\raggedright
-	\input{introduction}
-	\input{background}
-	\input{method}
-	\input{results}
-	\input{conclusion}
-\end{multicols}
-
+\input{introduction}
+\input{background}
+\input{method}
+\input{experiment}
+\input{results}
+\input{conclusion}
 \input{references}
 \end{document}

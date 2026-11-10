@@ -1,0 +1,13 @@
+{
+    "epoch": 3.0,
+    "gpu_current_allocated_gib": 0.332,
+    "gpu_peak_allocated_gib": 1.099,
+    "gpu_peak_reserved_gib": 1.369,
+    "total_flos": 7391075830794240.0,
+    "train_loss": 0.6752484569785036,
+    "train_runtime": 2838.0127,
+    "train_samples_per_second": 114.164,
+    "train_steps_per_second": 3.568,
+    "wall_time_minutes": 47.31,
+    "wall_time_seconds": 2838.33
+}
