@@ -58,23 +58,27 @@ LoRA $r=16$&32,768&$32\times$&96.875\%\\\bottomrule\end{tabular}
 \begin{itemize}\item Each task receives its own update; earlier factors remain frozen.\item Add $\lambda\sum_{i<t}\|A_i^\top A_t\|_F^2$ to penalize subspace overlap.\item A finite penalty encourages orthogonality but cannot guarantee zero forgetting.\end{itemize}
 \src{Report, Background and Method; Wang et al. (2023).}\end{frame}
 % Lac: 2 minutes
-\begin{frame}{AG News evaluation: reported run}
-\begin{columns}[T]\column{.48\textwidth}\begin{itemize}\item DistilRoBERTa on four-class AG News.\item Planned LoRA: rank 8, $\alpha=16$, query and value adapters plus classifier.\item Official test split: 7,600 examples.\end{itemize}
-\column{.48\textwidth}\begin{tabular}{lr}\toprule Metric&Value\\\midrule Accuracy&93.7632\%\\Macro F1&93.7617\%\\Correct&7,126\\Errors&474\\\bottomrule\end{tabular}\end{columns}
-\medskip\small Result files do not identify rank or include full fine-tuning results. Metrics characterize the evaluated run only.
-\src{Report, Experiment and Results.}\end{frame}
+\begin{frame}{AG News: LoRA and full fine-tuning}
+\small DistilRoBERTa; official four-class test split of 7,600 examples.
+\medskip\centering\begin{tabular}{lrr}\toprule
+Metric&LoRA run&Full fine-tuning\\\midrule
+Accuracy&93.7632\%&95.0263\%\\
+Macro F1&93.7617\%&95.0278\%\\
+Test loss&0.192954&0.181179\\\bottomrule\end{tabular}
+\medskip\par\small Full fine-tuning is 1.26 percentage points higher in accuracy and macro F1. The LoRA result files do not identify rank. The configurations use different learning rates.
+\src{Report, Experiment and Results; baseline\_results.csv.}\end{frame}
 % Tinh: 1.5 minutes
 \begin{frame}{Quality and resource trade-offs}
 \small\begin{tabular}{p{.22\linewidth}p{.68\linewidth}}\toprule
 Measure&Evidence and limit\\\midrule
-Quality&93.76\% accuracy and macro F1; no matched full fine-tuning comparison.\\
-Memory&Fewer gradients and optimizer states; frozen weights and activations remain. Peak memory was not reported.\\
-Training time&No duration was reported.\\
-Inference&Merging permits one matrix multiplication; no merged versus unmerged timing was reported.\\\bottomrule\end{tabular}
+Quality&LoRA 93.76\% versus baseline 95.03\% accuracy; one run per method.\\
+Memory&Peak allocated: LoRA 1.099 GiB; baseline 2.138 GiB. Frozen weights and activations remain.\\
+Training time&LoRA 47.31 min; baseline 66.38 min.\\
+Inference&Merging permits one matrix multiplication; no merged versus unmerged latency comparison.\\\bottomrule\end{tabular}
 \src{Report, Results and Discussion; Hu et al. (2022).}\end{frame}
 % Tinh: 1.5 minutes
 \begin{frame}{Conclusion: when LoRA fits}
-\begin{itemize}\item Rank-4 LoRA trains 8,192 instead of 1,048,576 parameters for the worked matrix.\item The evaluated AG News run shows useful performance but cannot establish parity with full fine-tuning.\item LoRA fits when limiting trained parameters matters. Broader changes or inadequate rank may favor another method.\item Verify task quality, GPU memory, training time, and deployment latency. O-LoRA was not evaluated here.\end{itemize}
+\begin{itemize}\item Rank-4 LoRA trains 8,192 instead of 1,048,576 parameters for the worked matrix.\item The baseline scores about 1.26 percentage points higher; LoRA uses less training time and peak allocated GPU memory in these runs.\item LoRA fits when limiting trained parameters matters and the quality trade-off is acceptable.\item Repeat both methods and measure deployment latency. O-LoRA was not evaluated here.\end{itemize}
 \src{Report, Conclusion and Results.}\end{frame}
 \begin{frame}{References}
 \footnotesize\begin{itemize}\item Hu et al. (2022). ``LoRA: Low-Rank Adaptation of Large Language Models.''\item Wang et al. (2023). ``Orthogonal Subspace Learning for Language Model Continual Learning.''\item Zhang et al. (2015). ``Character-level Convolutional Networks for Text Classification.''\item CS420 seminar report, ``LoRA and O-LoRA: Parameter-Efficient Fine-Tuning of Large Models.''\end{itemize}

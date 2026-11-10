@@ -1,0 +1,53 @@
+section,item,metric,value
+model_summary,distilbert/distilroberta-base,fine_tuning,full
+model_summary,distilbert/distilroberta-base,trainable_parameters,82121476
+model_summary,distilbert/distilroberta-base,total_parameters,82121476
+model_summary,distilbert/distilroberta-base,test_loss,0.181179
+model_summary,distilbert/distilroberta-base,test_accuracy,0.950263
+model_summary,distilbert/distilroberta-base,test_macro_f1,0.950278
+model_summary,distilbert/distilroberta-base,test_runtime,30.1281
+category_metrics,World,precision,0.963964
+category_metrics,World,recall,0.957368
+category_metrics,World,f1_score,0.960655
+category_metrics,World,support,1900.0
+category_metrics,Sports,precision,0.989463
+category_metrics,Sports,recall,0.988421
+category_metrics,Sports,f1_score,0.988942
+category_metrics,Sports,support,1900.0
+category_metrics,Business,precision,0.936113
+category_metrics,Business,recall,0.910000
+category_metrics,Business,f1_score,0.922872
+category_metrics,Business,support,1900.0
+category_metrics,Sci/Tech,precision,0.912602
+category_metrics,Sci/Tech,recall,0.945263
+category_metrics,Sci/Tech,f1_score,0.928645
+category_metrics,Sci/Tech,support,1900.0
+category_metrics,macro avg,precision,0.950535
+category_metrics,macro avg,recall,0.950263
+category_metrics,macro avg,f1_score,0.950278
+category_metrics,macro avg,support,7600.0
+category_metrics,weighted avg,precision,0.950535
+category_metrics,weighted avg,recall,0.950263
+category_metrics,weighted avg,f1_score,0.950278
+category_metrics,weighted avg,support,7600.0
+training_history,epoch 1,training_loss,0.786857
+training_history,epoch 1,validation_loss,0.175261
+training_history,epoch 1,accuracy,0.940500
+training_history,epoch 1,macro_f1,0.940518
+training_history,epoch 2,training_loss,0.497928
+training_history,epoch 2,validation_loss,0.184476
+training_history,epoch 2,accuracy,0.942750
+training_history,epoch 2,macro_f1,0.942720
+training_history,epoch 3,training_loss,0.563929
+training_history,epoch 3,validation_loss,0.181332
+training_history,epoch 3,accuracy,0.946083
+training_history,epoch 3,macro_f1,0.946092
+training_resources,summary,wall_time_seconds,3982.92
+training_resources,summary,wall_time_minutes,66.38
+training_resources,summary,gpu_peak_allocated_gib,2.138
+training_resources,summary,gpu_peak_reserved_gib,2.297
+training_resources,summary,gpu_current_allocated_gib,0.94
+prediction,Sports,World,0.04143312945961952
+prediction,Sports,Sports,0.9578638672828674
+prediction,Sports,Business,0.0002705849183257669
+prediction,Sports,Sci/Tech,0.00043239348451606933

@@ -29,11 +29,30 @@ Macro average & 0.9377 & 0.9376 & 0.9376 & 7,600 \\
 \end{tabular}
 \end{table}
 
-The supplied result files do not identify the LoRA rank and do not
-include a corresponding full fine-tuning result or results across ranks.
-Accordingly, these metrics characterize the evaluated run only. They do
-not show that LoRA matches or outperforms full fine-tuning, nor how rank
-affects quality.
+The full fine-tuning baseline in \texttt{baseline\_results.csv} obtains
+95.0263\% accuracy, 95.0278\% macro F1, and 0.181179 test loss on
+7,600 examples. Relative to it, the LoRA run is 1.2631 percentage
+points lower in accuracy and 1.2661 points lower in macro F1. The LoRA
+result files do not identify the rank and provide no results across
+ranks, so this comparison cannot establish how rank affects quality.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Reported test results and training resources for the two runs.}
+\label{tab:run-comparison}
+\begin{tabular}{lrr}
+\toprule
+Measure & LoRA run & Full fine-tuning \\
+\midrule
+Test accuracy & 93.7632\% & 95.0263\% \\
+Test macro F1 & 93.7617\% & 95.0278\% \\
+Test loss & 0.192954 & 0.181179 \\
+Training wall time & 47.31 min & 66.38 min \\
+Peak allocated GPU memory & 1.099 GiB & 2.138 GiB \\
+Peak reserved GPU memory & 1.369 GiB & 2.297 GiB \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Parameter and memory trade-off}
 
@@ -47,18 +66,19 @@ the full DistilRoBERTa model.
 
 Trainable-parameter count is not total GPU memory use. The frozen base
 weights remain in memory, and activations and temporary tensors also
-contribute to runtime use. The supplied result files do not report peak
-GPU memory, so they cannot establish an empirical memory saving.
+contribute to runtime use. Peak allocated memory is 1.039 GiB lower for
+LoRA (1.099 versus 2.138 GiB); peak reserved memory is 0.928 GiB lower.
+These are run-level observations, not the reduction ratio predicted by
+the single-matrix parameter count.
 
 \subsection{Training and inference efficiency}
 
-The metrics report an evaluation runtime of 30.0006 seconds, or 253.328
-test examples per second (15.833 evaluation steps per second). These are
-evaluation measurements, not training-time measurements or a controlled
-inference comparison. No training duration, peak memory, per-example
-latency, or separate merged and unmerged adapter timings are reported.
-Thus, efficiency benefits beyond the parameter-count calculation remain
-method-level expectations rather than measured outcomes of this run.
+The LoRA run reports 47.31 minutes training wall time, versus 66.38
+minutes for full fine-tuning, a 19.07-minute difference. Their reported
+test evaluation runtimes are 30.0006 and 30.1281 seconds, respectively.
+These evaluation timings do not constitute a controlled latency
+comparison. No per-example latency or separate merged and unmerged
+adapter timings are reported.
 
 LoRA's update can be merged into the base matrix after training, allowing
 inference without a separate adapter branch. Keeping adapters separate
@@ -69,14 +89,14 @@ choice entails growing adapter storage across tasks.
 
 \subsection{Limitations}
 
-The conclusions are limited by the single supplied evaluation, the
-absence of rank-specific metadata and a full fine-tuning baseline, and
-the lack of measured training time and GPU memory. No repeated runs or
-variation estimates are available. The $1024\times1024$ example is an
+The conclusions are limited by one run per method and the absence of
+rank-specific metadata for the LoRA result. No repeated runs or
+variation estimates are available. The methods use different learning
+rates, so the observed gaps cannot be attributed solely to adapter
+choice. The $1024\times1024$ example is an
 illustration for one matrix, not a whole-model resource measurement.
 Future controlled comparisons should record rank and target modules,
-compare LoRA and full fine-tuning on the same split and schedule, and
-measure training duration, peak GPU memory, and inference latency. O-LoRA
+repeat both methods, and measure inference latency. O-LoRA
 is discussed from its method description only and was not evaluated in
 this experiment.
 

@@ -2,16 +2,18 @@
 LoRA offers a practical way to reduce the number of parameters updated
 during fine-tuning. For a $1024 \times 1024$ weight matrix, rank-4 LoRA
 uses 8,192 trainable parameters instead of 1,048,576, a 99.22\%
-reduction. In our rank-8 DistilRoBERTa experiment on AG News, the
+reduction. In the DistilRoBERTa experiment on AG News, the
 trainable adapters and classifier account for 0.8944\% of the model's
 parameters, and the model reaches 93.76\% test accuracy and 93.76\%
-macro-F1 across 7,600 examples. This provides evidence that LoRA can
-support effective adaptation with a small trainable parameter budget
-for this classification task.
+macro-F1 across 7,600 examples. The full fine-tuning baseline reaches
+95.03\% accuracy and macro-F1, about 1.26 percentage points higher on
+both measures. LoRA uses 47.31 rather than 66.38 minutes training wall
+time and peaks at 1.099 rather than 2.138 GiB allocated GPU memory.
+These runs show a measured quality and resource trade-off.
 
-These findings do not show that LoRA matches or surpasses full
-fine-tuning: the experiment has no full fine-tuning baseline or
-comparison across ranks, and it does not measure GPU memory use.
+The comparison has only one run per method, different learning rates,
+and no comparison across ranks; the LoRA result files do not identify
+the rank.
 Freezing the base weights reduces gradient and optimizer-state
 requirements, but the weights, activations, and intermediate
 computations still consume memory. Rank selection also trades
