@@ -1,0 +1,94 @@
+\section{Results and Discussion}
+\subsection{Classification quality}
+
+On the official AG News test split, the reported run evaluates 7,600
+examples and obtains 93.7632\% accuracy, 93.7617\% macro F1, and a test
+loss of 0.192954. The test set is balanced, with 1,900 examples in each
+category. Sports has the highest class F1 (0.9851); Business has the
+lowest (0.9047). The prediction file records 7,126 correct predictions
+and 474 errors. The largest mutual confusion is between Business and
+Sci/Tech: 139 Business examples are labeled Sci/Tech and 108 Sci/Tech
+examples are labeled Business. These per-class results show why aggregate
+accuracy alone does not describe all error patterns.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Per-category classification results on the AG News test set.}
+\label{tab:classification}
+\begin{tabular}{lrrrr}
+\toprule
+Category & Precision & Recall & F1-score & Support \\
+\midrule
+World & 0.9552 & 0.9421 & 0.9486 & 1,900 \\
+Sports & 0.9817 & 0.9884 & 0.9851 & 1,900 \\
+Business & 0.9123 & 0.8974 & 0.9047 & 1,900 \\
+Sci/Tech & 0.9017 & 0.9226 & 0.9121 & 1,900 \\
+Macro average & 0.9377 & 0.9376 & 0.9376 & 7,600 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The supplied result files do not identify the LoRA rank and do not
+include a corresponding full fine-tuning result or results across ranks.
+Accordingly, these metrics characterize the evaluated run only. They do
+not show that LoRA matches or outperforms full fine-tuning, nor how rank
+affects quality.
+
+\subsection{Parameter and memory trade-off}
+
+For one $1024\times1024$ matrix, full fine-tuning updates 1,048,576
+parameters. LoRA trains $r(1024+1024)=2048r$ parameters: 8,192 at rank 4,
+16,384 at rank 8, and 32,768 at rank 16. These correspond to reductions
+of 99.21875\%, 98.4375\%, and 96.875\%, respectively, relative to the
+single matrix. This illustrates a reduction in trainable parameters and
+the associated gradients and optimizer states, but is not a count for
+the full DistilRoBERTa model.
+
+Trainable-parameter count is not total GPU memory use. The frozen base
+weights remain in memory, and activations and temporary tensors also
+contribute to runtime use. The supplied result files do not report peak
+GPU memory, so they cannot establish an empirical memory saving.
+
+\subsection{Training and inference efficiency}
+
+The metrics report an evaluation runtime of 30.0006 seconds, or 253.328
+test examples per second (15.833 evaluation steps per second). These are
+evaluation measurements, not training-time measurements or a controlled
+inference comparison. No training duration, peak memory, per-example
+latency, or separate merged and unmerged adapter timings are reported.
+Thus, efficiency benefits beyond the parameter-count calculation remain
+method-level expectations rather than measured outcomes of this run.
+
+LoRA's update can be merged into the base matrix after training, allowing
+inference without a separate adapter branch. Keeping adapters separate
+supports task switching, while merging makes the adapted weights easier
+to use as a single model. O-LoRA can similarly accumulate task updates
+for inference and retain individual factors for continued learning; that
+choice entails growing adapter storage across tasks.
+
+\subsection{Limitations}
+
+The conclusions are limited by the single supplied evaluation, the
+absence of rank-specific metadata and a full fine-tuning baseline, and
+the lack of measured training time and GPU memory. No repeated runs or
+variation estimates are available. The $1024\times1024$ example is an
+illustration for one matrix, not a whole-model resource measurement.
+Future controlled comparisons should record rank and target modules,
+compare LoRA and full fine-tuning on the same split and schedule, and
+measure training duration, peak GPU memory, and inference latency. O-LoRA
+is discussed from its method description only and was not evaluated in
+this experiment.
+
+\subsection{When LoRA may not be the best choice}
+
+LoRA is not automatically the right choice for every adaptation task. If
+the task needs broad changes to model behavior, full fine-tuning may offer
+more adaptation capacity. If the chosen rank cannot meet the quality
+target, a higher rank or another method may be needed, with a corresponding
+increase in trainable parameters. For small models with ample compute, the
+efficiency gain may matter less than the simplicity of full fine-tuning.
+Deployment requirements also matter: separate adapters ease task
+switching, while merged weights simplify serving a selected adapted model.
+The appropriate choice should be made against task-specific quality and
+resource requirements.

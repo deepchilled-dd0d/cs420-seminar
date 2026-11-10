@@ -1,0 +1,19 @@
+\section{Introduction}
+Pre-trained models can be adapted to many downstream tasks, but
+full fine-tuning updates and stores a separate copy of every model
+parameter for each task. This can make adaptation expensive in optimizer
+memory and checkpoint storage. Low-Rank Adaptation (LoRA) addresses this
+cost by freezing the pre-trained weights and learning a small, low-rank
+update for selected matrices \cite{hu2022lora}.
+
+This report examines the parameter and deployment trade-offs of LoRA and
+reviews Orthogonal LoRA (O-LoRA), which applies task-specific low-rank
+updates to continual learning and penalizes overlap between task update
+subspaces \cite{wang2023olora}. Our guiding question is how much LoRA
+reduces trainable parameters, and what evidence is needed to assess that
+efficiency alongside task quality and practical resource use.
+
+We first review the LoRA and O-LoRA methods, then derive parameter counts
+for a $1024\times1024$ matrix. We also describe a DistilRoBERTa experiment
+on four-class AG News classification and discuss its reported results and
+limitations.

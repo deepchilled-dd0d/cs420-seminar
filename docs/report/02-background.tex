@@ -1,0 +1,422 @@
+\section{Background}
+
+\subsection{Finetuning}
+
+Let $x$ represent the input, $h$ represent the hidden state representation, and $W_0$ denote the frozen pretrained weight matrix.
+
+\begin{itemize}
+	\item \textbf{Linear probing}: The pretrained model acts as a frozen feature extractor yielding representations $h = f_{W_0}(x)$. Only a linear classification head is trained: \( \hat{y} = W_{\text{head}} h + b \)
+	\item \textbf{Full fine-tuning}: All parameters are updated. A full-rank weight update $\Delta W$ is learned: \( h = (W_0 + \Delta W) x \)
+	\item \textbf{Parameter-efficient fine-tuning (PEFT)}:
+	      \begin{itemize}
+		      \item \textbf{LoRA}: The weight update is constrained by decomposing it into two trainable low-rank matrices, $B$ and $A$: \( h = W_0 x + B A x \)
+		      \item \textbf{Adapter}: A trainable bottleneck feed-forward network is inserted after the frozen layer's output $h = W_0 x$: \( h' = h + W_{\text{up}} \sigma(W_{\text{down}} h) \)
+		      \item \textbf{Prompt tuning}: A trainable sequence of continuous prompt embeddings $P$ is prepended to the input sequence embeddings $X$: \( X' = (P; X) \)
+		      \item \textbf{Prefix tuning}: Trainable prefix vectors ($P_K$ and $P_V$) are prepended directly to the Keys ($K$) and Values ($V$) computed by the frozen attention layers: \( h = \text{Attn}(Q, (P_K; K), [P_V; V]) \)
+	      \end{itemize}
+\end{itemize}
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.88\textwidth]{training_and_finetuning.png}
+	\caption{Training and fine-tuning}
+	\label{fig:training_and_finetuning}
+\end{figure}
+
+\subsection{Low-Rank Structures}
+
+\subsubsection{Motivation}
+
+Li et al. \cite{li2018measuring} define intrinsic dimension as the codimension of the solution set: if the full parameter space has dimension $D$ and the solution set has dimension $s$, then $D=d_{\mathrm{int}}+s$. Their random-subspace formulation keeps the initialization $\theta_0^{(D)}\in\mathbb R^D$ and projection $P\in\mathbb R^{D\times d}$ fixed while optimizing lower-dimensional coordinates $\theta^{(d)}\in\mathbb R^d$. At the final solution,
+\[
+	\theta_*^{(D)}=\theta_0^{(D)}+P\theta_*^{(d)}
+\]
+Figure~\ref{fig:intrinsic_dimension} illustrates the case $D=3$, $s=1$, and $d=d_{\mathrm{int}}=2$. Li et al. establish almost-sure intersection at the codimension threshold for hyperplane solution sets, while arbitrary solution-set topologies need not intersect.
+
+% ==========================================================
+% Figure: Intrinsic dimension
+% ==========================================================
+
+\begin{figure}[htbp]
+	\centering
+
+	\begin{tikzpicture}[
+			x=1cm,
+			y=1cm,
+			>=Stealth,
+			font=\small,
+			axis/.style={->,semithick},
+			update/.style={->,semithick},
+			solution/.style={
+					line width=1.2pt,
+					dash pattern=on .5pt off 3pt,
+					line cap=round
+				},
+			plane/.style={
+					fill=gray!25,
+					fill opacity=1,
+					draw=black!70,
+					draw opacity=1,
+					line width=.8pt
+				},
+			point/.style={
+					circle,
+					fill=black,
+					inner sep=1.6pt
+				}
+		]
+
+		% ------------------------------------------------------
+		% (a) Full parameter space
+		% ------------------------------------------------------
+		\begin{scope}[shift={(0,0)}]
+
+			% Negative theta_1 direction
+			\draw[semithick] (-1.25,0) -- (0,0);
+
+			% Positive theta_1 direction
+			\draw[axis] (0,0) -- (2.15,0)
+			node[right] {$\theta_1$};
+
+			% Negative theta_2 direction
+			\draw[semithick] (0,-.5) -- (0,0);
+
+			% Positive theta_2 direction
+			\draw[axis] (0,0) -- (0,2.9)
+			node[above] {$\theta_2$};
+
+			% Negative theta_3 direction
+			\draw[semithick] (1.3,.86) -- (0,0);
+
+			% Positive theta_3 direction
+			\draw[axis] (0,0) -- (-1.3,-.86)
+			node[below left] {$\theta_3$};
+
+			% Initialization and final solution
+			\coordinate (theta0L) at (.78,.65);
+			\coordinate (thetaStarL) at (-.58,1.45);
+
+			% Optimization displacement
+			\draw[update] (theta0L) -- (thetaStarL);
+
+			% Points
+			\node[point] at (theta0L) {};
+			\node[point] at (thetaStarL) {};
+
+			% Labels
+			\node[below right=2pt] at (theta0L)
+			{$\theta_0^{(D)}$};
+
+			\node[above left=2pt] at (thetaStarL)
+			{$\theta_*^{(D)}$};
+
+			% Panel heading
+			\node[font=\bfseries] at (.35,3.65)
+			{(a) Full parameter space};
+
+			\node at (.4,-1.6) {$D=3$};
+
+		\end{scope}
+
+
+		% ------------------------------------------------------
+		% (b) Affine optimization subspace
+		% ------------------------------------------------------
+		\begin{scope}[shift={(7.2,0)}]
+
+			% --------------------------------------------------
+			% Coordinate axes
+			% --------------------------------------------------
+
+			% Negative theta_1 direction
+			\draw[semithick] (-1.25,0) -- (0,0);
+
+			% Positive theta_1 direction
+			\draw[axis] (0,0) -- (2.15,0)
+			node[right] {$\theta_1$};
+
+			% Negative theta_2 direction
+			\draw[semithick] (0,-.5) -- (0,0);
+
+			% Positive theta_2 direction
+			\draw[axis] (0,0) -- (0,2.9)
+			node[above right] {$\theta_2$};
+
+			% Negative theta_3 direction
+			\draw[semithick] (1.3,.86) -- (0,0);
+
+			% Positive theta_3 direction
+			\draw[axis] (0,0) -- (-1.3,-.86)
+			node[below left] {$\theta_3$};
+
+			% --------------------------------------------------
+			% Opaque two-dimensional affine plane
+			% --------------------------------------------------
+			\coordinate (A) at (-.95,.05);
+			\coordinate (B) at (2.25,.55);
+			\coordinate (C) at (.70,2.35);
+			\coordinate (E) at (-2.50,1.85);
+
+			\filldraw[plane]
+			(A) -- (B) -- (C) -- (E) -- cycle;
+
+			% --------------------------------------------------
+			% Initialization and final solution
+			% --------------------------------------------------
+			\coordinate (theta0R) at (.78,.65);
+			\coordinate (thetaStarR) at (-.58,1.45);
+
+			% Entry point of the solution line into the plane
+			\coordinate (solutionEntry) at (-1.00687,.11603);
+
+			% --------------------------------------------------
+			% One-dimensional solution set
+			% --------------------------------------------------
+
+			% Solid portion below the surface
+			\draw[semithick]
+			(-1.156,-.35) -- (solutionEntry);
+
+			% Sparse dotted portion behind the surface,
+			% ending exactly at the final solution
+			\draw[solution]
+			(solutionEntry) -- (thetaStarR);
+
+			% Solid portion above the final solution
+			\draw[semithick]
+			(thetaStarR) -- (-.116,2.9);
+
+			% --------------------------------------------------
+			% Optimization displacement inside the plane
+			% --------------------------------------------------
+			\draw[update]
+			(theta0R) -- (thetaStarR)
+			node[pos=.48,above right,
+				fill=white,inner sep=2pt]
+			{$P\theta_*^{(d)}$};
+
+			% Points
+			\node[point] at (theta0R) {};
+			\node[point] at (thetaStarR) {};
+
+			% Point labels
+			\node[below right=2pt] at (theta0R)
+			{$\theta_0^{(D)}$};
+
+			\node[above left=2pt] at (thetaStarR)
+			{$\theta_*^{(D)}$};
+
+			% Panel heading
+			\node[font=\bfseries] at (.35,3.65)
+			{(b) Affine optimization subspace};
+		\end{scope}
+
+	\end{tikzpicture}
+
+	\caption{
+		Geometric illustration of intrinsic dimensionality,
+		adapted from Li et al.~(2018).
+		The one-dimensional solution set $\mathcal S$ is
+		represented by a solid line outside the plane and
+		a sparse dotted line inside it, intersecting the
+		plane at $\theta_*^{(D)}$.
+	}
+	\label{fig:intrinsic_dimension}
+
+\end{figure}
+
+The low-dimensional fine-tuning results motivate LoRA, but do not establish that weight updates have low matrix rank. Figure~\ref{fig:lora_motivation} summarizes the progression from low-rank observations to LoRA's hypothesis and parameterization.
+
+
+% ==========================================================
+% Figure: Motivation for LoRA
+% ==========================================================
+
+\begin{figure}[htbp]
+	\centering
+
+	% IMPORTANT: Do not insert blank lines inside this
+	% tikzpicture option list.
+	\begin{tikzpicture}[
+			>=Stealth,
+			font=\small,
+			node distance=5mm,
+			box/.style={
+					draw=black!70,
+					fill=gray!8,
+					rounded corners=2pt,
+					text width=12.2cm,
+					align=left,
+					inner sep=7pt
+				},
+			hypothesis/.style={
+					box,
+					dashed,
+					fill=gray!3
+				},
+			method/.style={
+					box,
+					fill=gray!17
+				},
+			arrow/.style={
+					->,
+					semithick
+				}
+		]
+
+		% --------------------------------------------------
+		% 1. Low-rank structure
+		% --------------------------------------------------
+		\node[box] (n1) {
+			\textbf{1. Low-rank structure in machine learning}
+
+			Many learning problems exhibit intrinsic low-rank
+			structure. Overparameterized neural networks can
+			also develop low-rank properties after training,
+			and previous work has explicitly exploited these
+			properties through low-rank constraints.
+
+			\hfill{\footnotesize
+				Oymak et al. \cite{oymak2019generalization};
+				Hu et al. \cite{hu2022lora}
+			}
+		};
+
+
+		% --------------------------------------------------
+		% 2. Intrinsic dimensionality of fine-tuning
+		% --------------------------------------------------
+		\node[box,below=of n1] (n2) {
+			\textbf{2. Low intrinsic dimensionality of fine-tuning}
+
+			Pretrained language models can be fine-tuned
+			effectively through low-dimensional
+			reparameterizations of their parameter space.
+
+			\hfill{\footnotesize Aghajanyan et al. \cite{aghajanyan2021intrinsic}
+			}
+		};
+
+
+		% --------------------------------------------------
+		% 3. LoRA hypothesis
+		% --------------------------------------------------
+		\node[hypothesis,below=of n2] (n3) {
+			\textbf{3. LoRA hypothesis: low-rank weight updates}
+
+			Do downstream tasks require only low-rank
+			changes to pretrained weight matrices?
+
+			\[
+				\operatorname{rank}(\Delta W)
+				\ll \min(m,n).
+			\]
+
+			Low-dimensional fine-tuning motivates this
+			hypothesis, but does not imply it:
+			intrinsic dimension and matrix rank are distinct
+			quantities.
+
+			\hfill{\footnotesize Hu et al. \cite{hu2022lora} }
+		};
+
+
+		% --------------------------------------------------
+		% 4. LoRA method and consequences
+		% --------------------------------------------------
+		\node[method,below=of n3] (n4) {
+			\textbf{4. LoRA: low-rank parameterization}
+
+			Freeze the pretrained matrix and optimize only
+			its low-rank update:
+			\[
+				W=W_0+\Delta W=W_0+AB,
+			\]
+			Fewer trainable parameters, reduced optimizer-state
+			memory, task-specific adapters, and the ability to
+			merge $AB$ into $W_0$ for inference.
+
+			\hfill{\footnotesize Hu et al. \cite{hu2022lora} }
+		};
+
+
+		% --------------------------------------------------
+		% Connections
+		% --------------------------------------------------
+		\draw[arrow] (n1.south) -- (n2.north);
+
+		% Dashed transition: motivation, not implication
+		\draw[arrow,dashed] (n2.south) -- (n3.north);
+
+		\draw[arrow] (n3.south) -- (n4.north);
+
+	\end{tikzpicture}
+
+	\caption{
+		Conceptual progression motivating Low-Rank Adaptation.
+		Observations of low-rank structure in machine learning
+		and low intrinsic dimensionality in language-model
+		fine-tuning motivate the hypothesis that task-specific
+		weight updates have low intrinsic rank.
+		The dashed transition indicates a hypothesis rather
+		than a mathematical implication.
+		LoRA implements this hypothesis through trainable
+		low-rank factors while freezing pretrained weights.
+	}
+	\label{fig:lora_motivation}
+\end{figure}
+
+
+\subsection{LoRA: Low-rank Adaptation}
+
+Hu et al. \cite{hu2022lora} introduce LoRA as a parameter-efficient alternative
+to updating all pre-trained weights during downstream fine-tuning.
+For a frozen matrix $W_0$, the method learns a low-rank update
+$\Delta W=AB$, scaled by $\alpha/r$. The factors have rank dimension
+$r$ and are much smaller than the original matrix when
+$r\ll\min(d,k)$. This reduces the trainable parameters and the associated
+gradient and optimizer state. The frozen model weights still need to be
+stored and used for computation. After training, an adapter can be merged
+into the base weights, or retained separately when switching among tasks
+is useful.
+
+\subsection{O-LoRA: Low-rank Adaptation in Continual Learning}
+
+Continual learning studies how a model can learn a sequence of tasks
+without losing useful performance on earlier tasks. Catastrophic
+forgetting creates a tension between plasticity, the ability to learn new
+tasks, and stability, the retention of prior knowledge. O-LoRA method of
+Wang et al. \cite{wang2023olora} assigns a separate LoRA update to each task,
+freezes the updates for completed tasks, and adds a regularization term that
+encourages the current update subspace to be orthogonal to earlier ones.
+Its finite penalty encourages subspace separation; it does not
+guarantee exact orthogonality or eliminate forgetting.
+
+\subsection{Relationship and scope}
+
+Both methods use low-rank updates to reduce the part of the model that is
+trained. LoRA addresses adaptation to a task, while O-LoRA adds a
+continual-learning mechanism intended to reduce interference across a
+sequence of tasks. Their reported evaluations use different models,
+datasets, and experimental settings, so the papers support a conceptual
+comparison of method goals and trade-offs rather than a direct ranking of
+performance. Our experiment evaluates LoRA on AG News and does not
+evaluate O-LoRA.
+
+\begin{table}[htbp]
+	\centering
+	\small
+	\caption{Conceptual comparison of LoRA and O-LoRA.}
+	\label{tab:adapter-method-comparison}
+	\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.2cm}XX@{}}
+		\toprule
+		\textbf{Aspect} & \textbf{LoRA}                                             & \textbf{O-LoRA}                                                                            \\
+		\midrule
+		Objective       & Adapt a pre-trained model with fewer trainable parameters & Learn sequential tasks while limiting interference efficiently                             \\
+		Training        & Train low-rank factors for the selected task              & Train current task factors; freeze earlier task factors                                    \\
+		Forgetting      & No explicit forgetting-control mechanism                  & Orthogonality penalty aims to mitigate forgetting                                          \\
+		Storage         & One small adapter per retained task                       & Adapter storage grows with the number of tasks                                             \\
+		Inference       & Selected adapter may be merged into base weights          & Task updates may be accumulated into weights; factors may be retained for further learning \\
+		\bottomrule
+	\end{tabularx}
+\end{table}
