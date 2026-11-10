@@ -27,7 +27,7 @@ I. BACKGROUND AND FUNDAMENTALS
        - Adapter-based fine-tuning
        - Parameter-efficient fine-tuning (PEFT)
 
-[ ] 2. Understand the original LoRA method:
+[x] 2. Understand the original LoRA method:
        - Explain low-rank matrix factorization.
        - Explain the rank r.
        - Explain the scaling factor alpha.
@@ -167,7 +167,7 @@ V. EXPECTED OUTPUTS
 
 [ ] 15. Produce a LoRA architecture diagram showing W + BA.
 
-[ ] 16. Produce LoRA training and inference pipeline diagrams.
+[x] 16. Produce LoRA training and inference pipeline diagrams.
 
 [ ] 17. Produce an O-LoRA diagram illustrating multiple
        approximately orthogonal task subspaces.
@@ -175,9 +175,9 @@ V. EXPECTED OUTPUTS
 [ ] 18. Produce a trainable-parameter comparison table
        for full fine-tuning and different LoRA ranks.
 
-[ ] 19. Produce a LoRA vs O-LoRA comparison table.
+[x] 19. Produce a LoRA vs O-LoRA comparison table.
 
-[ ] 20. Include either:
+[x] 20. Include either:
        - Experimental results from a toy or small-model experiment;
        OR
        - An annotated mathematical example and workflow.
@@ -189,7 +189,7 @@ V. EXPECTED OUTPUTS
 
 VI. RESEARCH PAPERS
 
-[ ] 22. Read the original LoRA paper:
+[x] 22. Read the original LoRA paper:
 
        Hu, E. J. et al. (2022).
        LoRA: Low-Rank Adaptation of Large Language Models.
@@ -204,7 +204,7 @@ VI. RESEARCH PAPERS
        - Trainable parameter reduction.
        - Training and inference.
 
-[ ] 23. Read the O-LoRA paper:
+[x] 23. Read the O-LoRA paper:
 
        Wang, X. et al. (2023).
        Orthogonal Subspace Learning for Language Model

@@ -2,17 +2,56 @@
 
 \subsection{Finetuning}
 
-Let $x$ represent the input, $h$ represent the hidden state representation, and $W_0$ denote the frozen pretrained weight matrix.
+Let $x$ denote the input to the pretrained model, $h$ a hidden
+representation, and $W_0$ a frozen pretrained weight matrix.
+For individual linear layers, let $z$ denote the layer input.
 
 \begin{itemize}
-	\item \textbf{Linear probing}: The pretrained model acts as a frozen feature extractor yielding representations $h = f_{W_0}(x)$. Only a linear classification head is trained: \( \hat{y} = W_{\text{head}} h + b \)
-	\item \textbf{Full fine-tuning}: All parameters are updated. A full-rank weight update $\Delta W$ is learned: \( h = (W_0 + \Delta W) x \)
+	\item \textbf{Linear probing}: The pretrained model acts as a
+	      frozen feature extractor, yielding representations
+	      $h = f_{W_0}(x)$. Only a linear classification head is trained:
+	      \[
+		      \hat{y} = W_{\text{head}} h + b.
+	      \]
+
+	\item \textbf{Full fine-tuning}: All pretrained model parameters
+	      are updated. For a particular linear layer, this can be expressed
+	      as learning a full-rank weight update $\Delta W$:
+	      \[
+		      h = (W_0 + \Delta W)z.
+	      \]
+
 	\item \textbf{Parameter-efficient fine-tuning (PEFT)}:
+	      Only a small number of additional parameters or selected
+	      parameters are trained, while most pretrained weights remain frozen.
 	      \begin{itemize}
-		      \item \textbf{LoRA}: The weight update is constrained by decomposing it into two trainable low-rank matrices, $B$ and $A$: \( h = W_0 x + B A x \)
-		      \item \textbf{Adapter}: A trainable bottleneck feed-forward network is inserted after the frozen layer's output $h = W_0 x$: \( h' = h + W_{\text{up}} \sigma(W_{\text{down}} h) \)
-		      \item \textbf{Prompt tuning}: A trainable sequence of continuous prompt embeddings $P$ is prepended to the input sequence embeddings $X$: \( X' = (P; X) \)
-		      \item \textbf{Prefix tuning}: Trainable prefix vectors ($P_K$ and $P_V$) are prepended directly to the Keys ($K$) and Values ($V$) computed by the frozen attention layers: \( h = \text{Attn}(Q, (P_K; K), [P_V; V]) \)
+		      \item \textbf{LoRA}: The weight update is constrained to
+		            a low-rank decomposition using two trainable matrices,
+		            $B$ and $A$:
+		            \[
+			            h = W_0 z + \frac{\alpha}{r}BAz.
+		            \]
+
+		      \item \textbf{Adapter}: A trainable bottleneck feed-forward
+		            network is inserted after the frozen layer's output:
+		            \[
+			            h' = h + W_{\text{up}}\sigma(W_{\text{down}}h).
+		            \]
+
+		      \item \textbf{Prompt tuning}: A trainable sequence of
+		            continuous prompt embeddings $P$ is prepended to the
+		            input sequence embeddings $X$:
+		            \[
+			            X' = [P; X].
+		            \]
+
+		      \item \textbf{Prefix tuning}: Trainable prefix vectors,
+		            $P_K$ and $P_V$, are prepended to the keys and values
+		            in the attention layers:
+		            \[
+			            h = \operatorname{Attn}
+			            \left(Q, [P_K; K], [P_V; V]\right).
+		            \]
 	      \end{itemize}
 \end{itemize}
 
@@ -352,17 +391,7 @@ The low-dimensional fine-tuning results motivate LoRA, but do not establish that
 
 	\end{tikzpicture}
 
-	\caption{
-		Conceptual progression motivating Low-Rank Adaptation.
-		Observations of low-rank structure in machine learning
-		and low intrinsic dimensionality in language-model
-		fine-tuning motivate the hypothesis that task-specific
-		weight updates have low intrinsic rank.
-		The dashed transition indicates a hypothesis rather
-		than a mathematical implication.
-		LoRA implements this hypothesis through trainable
-		low-rank factors while freezing pretrained weights.
-	}
+	\caption{Conceptual progression motivating Low-Rank Adaptation.}
 	\label{fig:lora_motivation}
 \end{figure}
 
