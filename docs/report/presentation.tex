@@ -23,7 +23,7 @@
 \newcommand{\src}[1]{\gdef\srctext{#1}}
 \title{LoRA and O-LoRA: Parameter-Efficient Fine-Tuning of Large Models}
 \author{Thien-Lac Quach \and Minh-Quan Pham Nguyen \and Tinh Nguyen Van}
-\institute{CS420 Seminar}\date{23 November 2026}
+\institute{CS420 Seminar - Group 4}\date{23 November 2026}
 \begin{document}
 \begin{frame}\titlepage\end{frame}
 
@@ -43,8 +43,8 @@
 
 % Quan: 1 minute
 \begin{frame}{Ways to adapt a pretrained model}
-	\centering\includegraphics[height=.42\textheight,keepaspectratio]{training_and_finetuning.png}
-	\par\small\begin{tabular}{@{}ll@{}}\toprule
+	\centering\includegraphics[width=.92\textwidth,height=.52\textheight,keepaspectratio]{training_and_finetuning.png}
+	\par\medskip\footnotesize\begin{tabular}{@{}ll@{}}\toprule
 		Linear probing         & train only a head: $\hat y=W_{\rm head}\,h(x)+b$, $h(x)$ frozen          \\
 		Full fine-tuning       & update every weight: $h=(W_0+\Delta W)z$, $\Delta W$ full rank           \\
 		LoRA                   & $h=W_0z+\frac{\alpha}{r}ABz$, only $A,B$ trained                         \\
@@ -138,7 +138,7 @@
 	\end{itemize}
 	\src{Report, Method, LoRA; Hu et al. (2022). Factor names follow the report; some papers swap $A$ and $B$.}\end{frame}
 
-% ===================== Lac: ~6 minutes =====================
+% ===================== Lac: ~6.5 minutes =====================
 % Lac: 1 minute
 \begin{frame}{LoRA training: only $A$ and $B$ receive gradients}
 	\begin{columns}[c]
@@ -217,15 +217,38 @@
 	\end{columns}
 	\src{Report, Method, Trainable Parameters versus GPU Memory. Byte counts are our arithmetic under the stated assumptions: $8{,}192\times4$\,B = 32\,KiB.}\end{frame}
 
-% Lac: 1.5 minutes
-\begin{frame}{O-LoRA: LoRA for continual learning}
-	\small Tasks $\mathcal D_1,\dots,\mathcal D_T$ arrive in sequence; only $\mathcal D_t$ is available at step $t$. Goal: learn new tasks (plasticity) without catastrophic forgetting (stability).
+% Lac: 1 minute
+\begin{frame}{O-LoRA: orthogonality and the core hypothesis}
+	\small\textbf{Setting.} Tasks $\mathcal D_1,\dots,\mathcal D_T$ arrive in sequence; only $\mathcal D_t$ is available at step $t$. Learning a new task can overwrite earlier ones (catastrophic forgetting).
+	\medskip
+	\begin{columns}[T]
+		\column{.48\textwidth}
+		\textbf{Orthogonal subspaces}
+		\begin{itemize}
+			\item Subspaces $\mathcal U,\mathcal V\subseteq\mathbb R^d$ are orthogonal if $u^\top v=0$ for all $u\in\mathcal U$, $v\in\mathcal V$.
+			\item For $\mathcal U_i=\operatorname{col}(A_i)$, $\mathcal U_t=\operatorname{col}(A_t)$, it suffices to check the columns:
+			      \[\mathcal U_i\perp\mathcal U_t\iff A_i^\top A_t=0\in\mathbb R^{r\times r}.\]
+			\item Entry $(A_i^\top A_t)_{pq}$ is the inner product of column $p$ of $A_i$ and column $q$ of $A_t$, so $\|A_i^\top A_t\|_F^2$ measures overlap and is $0$ only when orthogonal.
+		\end{itemize}
+		\column{.48\textwidth}
+		\textbf{O-LoRA hypothesis}
+		\begin{itemize}
+			\item The update $\tfrac{\alpha}{r}A_tB_tx$ always lies in $\operatorname{col}(A_t)$, so this column space approximates task $t$'s \emph{update subspace} (the low-rank subspace of its gradient updates).
+			\item If each new task updates in a subspace orthogonal to those of earlier tasks, it interferes less with what they learned.
+			\item So: give each task its own LoRA and keep the subspaces (approximately) orthogonal.
+		\end{itemize}
+	\end{columns}
+	\src{Report, Method, O-LoRA, Orthogonality constraint; summary, Comparing LoRA and O-LoRA; Wang et al. (2023).}\end{frame}
+
+% Lac: 1 minute
+\begin{frame}{O-LoRA: method}
+	\small
 	\begin{itemize}
-		\item One LoRA update per task; earlier factors $\{A_i,B_i\}_{i<t}$ and $W_0$ are frozen:
+		\item One LoRA update per task; $W_0$ and earlier factors $\{A_i,B_i\}_{i<t}$ are frozen while $A_t,B_t$ train:
 		      \[W_t=W_0+\sum_{i=1}^{t}\tfrac{\alpha}{r}A_iB_i.\]
-		\item The column space of $A_t$ approximates task $t$'s update subspace. Penalise overlap with earlier tasks:
-		      \[\mathcal L_t=\mathcal L_{\rm task}+\lambda\sum_{i=1}^{t-1}\bigl\|A_i^\top A_t\bigr\|_F^2 .\]
-		\item No replay data needed; updates can be merged so inference needs no task ID.
+		\item Penalise overlap between the current subspace and every earlier one:
+		      \[\mathcal L_t=\mathcal L_{\rm task}+\lambda\sum_{i=1}^{t-1}\bigl\|A_i^\top A_t\bigr\|_F^2,\qquad \lambda>0.\]
+		\item No replay data needed; updates can be merged into $W_t$, so inference needs no task ID.
 		\item A finite $\lambda$ encourages, but does not guarantee, orthogonality or zero forgetting; adapter storage grows with $T$.
 	\end{itemize}
 	\src{Report, Background and Method, O-LoRA; Wang et al. (2023). Applied to attention query and value weights in the paper.}\end{frame}
@@ -242,7 +265,7 @@
 		Storage    & One small adapter per retained task   & Grows with the number of tasks                                      \\
 		Inference  & Selected adapter may be merged        & Updates accumulated into weights; factors kept for further learning \\\bottomrule
 	\end{tabular}
-	\medskip\par The papers use different models, data and settings: a conceptual comparison, not a performance ranking. Our experiment evaluates LoRA only.
+	\medskip\par The papers use different models, data and settings: a conceptual comparison, not a performance ranking.
 	\src{Report, Background, Table~1; summary, Comparing LoRA and O-LoRA.}\end{frame}
 
 % Tinh: 1 minute
@@ -316,7 +339,7 @@
 		\item \textbf{Parameters:} rank-4 LoRA trains 8,192 instead of 1,048,576 weights for one $1024\times1024$ matrix (99.22\% fewer).
 		\item \textbf{Quality:} with 0.8944\% of parameters trained, LoRA reaches 93.76\% accuracy and macro F1; full fine-tuning is 1.26 pp higher.
 		\item \textbf{Resources:} LoRA used 47.31 vs.\ 66.38 min and 1.099 vs.\ 2.138 GiB peak allocated memory; savings are real but smaller than the parameter ratio.
-		\item \textbf{O-LoRA} extends LoRA to sequential tasks with an orthogonality penalty; not tested here.
+		\item \textbf{O-LoRA} extends LoRA to sequential tasks with an orthogonality penalty.
 		\item \textbf{Next:} repeat runs, match learning rates, sweep ranks, and measure merged vs.\ unmerged latency.
 	\end{itemize}
 	\medskip\centering LoRA fits when limiting trained parameters matters and the measured quality trade-off is acceptable.
