@@ -19,11 +19,27 @@
 \setbeamertemplate{blocks}[rounded][shadow=false]
 \usepackage{amsmath,amssymb,booktabs,graphicx,array,tikz}
 \usetikzlibrary{arrows.meta}
+% Styles for the intrinsic-dimension figure (slide "Intrinsic dimension").
+\tikzset{
+	idfig/.style={x=.72cm,y=.72cm,>=Stealth,font=\footnotesize,baseline=(current bounding box.north)},
+	axis/.style={->,semithick},update/.style={->,semithick},
+	solution/.style={line width=1.2pt,dash pattern=on .5pt off 3pt,line cap=round},
+	plane/.style={fill=gray!25,draw=black!70,line width=.8pt},
+	point/.style={circle,fill=black,inner sep=1.4pt},
+	axes/.pic={
+			\draw[semithick] (-1.25,0) -- (0,0);
+			\draw[axis] (0,0) -- (2.15,0) node[right] {$\theta_1$};
+			\draw[semithick] (0,-.5) -- (0,0);
+			\draw[axis] (0,0) -- (0,2.9) node[above] {$\theta_2$};
+			\draw[semithick] (1.3,.86) -- (0,0);
+			\draw[axis] (0,0) -- (-1.3,-.86) node[below left] {$\theta_3$};
+		},
+}
 \graphicspath{{../assets/}}
 \newcommand{\src}[1]{\gdef\srctext{#1}}
 \title{LoRA and O-LoRA: Parameter-Efficient Fine-Tuning of Large Models}
 \author{Thien-Lac Quach \and Minh-Quan Pham Nguyen \and Tinh Nguyen Van}
-\institute{CS420 Seminar - Group 4}\date{23 November 2026}
+\institute{CS420 Seminar -- Group 4}\date{23 November 2026}
 \begin{document}
 \begin{frame}\titlepage\end{frame}
 
@@ -43,7 +59,7 @@
 
 % Quan: 1 minute
 \begin{frame}{Ways to adapt a pretrained model}
-	\centering\includegraphics[width=.92\textwidth,height=.52\textheight,keepaspectratio]{training_and_finetuning.png}
+	\centering\includegraphics[width=.92\textwidth,height=.62\textheight,keepaspectratio]{training_and_finetuning.png}
 	\par\medskip\footnotesize\begin{tabular}{@{}ll@{}}\toprule
 		Linear probing         & train only a head: $\hat y=W_{\rm head}\,h(x)+b$, $h(x)$ frozen          \\
 		Full fine-tuning       & update every weight: $h=(W_0+\Delta W)z$, $\Delta W$ full rank           \\
@@ -55,60 +71,49 @@
 
 % Quan: 1.5 minutes
 \begin{frame}{Intrinsic dimension of an objective}
-	\centering
 	% Figure adapted from report, Background, Fig. 2 (Li et al., 2018).
-	\begin{tikzpicture}[x=.8cm,y=.8cm,>=Stealth,font=\footnotesize,
-			axis/.style={->,semithick},update/.style={->,semithick},
-			solution/.style={line width=1.2pt,dash pattern=on .5pt off 3pt,line cap=round},
-			plane/.style={fill=gray!25,draw=black!70,line width=.8pt},
-			point/.style={circle,fill=black,inner sep=1.4pt}]
-		% (a) Full parameter space
-		\begin{scope}
-			\draw[semithick] (-1.25,0) -- (0,0);
-			\draw[axis] (0,0) -- (2.15,0) node[right] {$\theta_1$};
-			\draw[semithick] (0,-.5) -- (0,0);
-			\draw[axis] (0,0) -- (0,2.9) node[above] {$\theta_2$};
-			\draw[semithick] (1.3,.86) -- (0,0);
-			\draw[axis] (0,0) -- (-1.3,-.86) node[below left] {$\theta_3$};
-			\coordinate (t0) at (.78,.65); \coordinate (ts) at (-.58,1.45);
+	% Each panel sits above the bullets that explain it; both pictures use
+	% the same bounding box so the two columns line up. Styles: preamble.
+	\begin{columns}[T]
+		\column{.47\textwidth}\centering
+		\textbf{(a) Full parameter space, $D=3$}\par\smallskip
+		\begin{tikzpicture}[idfig]
+			\useasboundingbox (-2.7,-1.15) rectangle (2.7,3.2);
+			\pic {axes};
+			\coordinate (t0) at (1.0,1.6); \coordinate (ts) at (-.58,1.45);
 			\draw[update] (t0) -- (ts);
 			\node[point] at (t0) {}; \node[point] at (ts) {};
-			\node[right=2pt] at (t0) {$\theta_0^{(D)}$};
-			\node[above left=1pt] at (ts) {$\theta_*^{(D)}$};
-			\node[font=\footnotesize\bfseries] at (.35,3.7) {(a) Full parameter space, $D=3$};
-		\end{scope}
-		% (b) Affine optimization subspace
-		\begin{scope}[shift={(8.2,0)}]
-			\draw[semithick] (-1.25,0) -- (0,0);
-			\draw[axis] (0,0) -- (2.15,0) node[right] {$\theta_1$};
-			\draw[semithick] (0,-.5) -- (0,0);
-			\draw[axis] (0,0) -- (0,2.9) node[above right] {$\theta_2$};
-			\draw[semithick] (1.3,.86) -- (0,0);
-			\draw[axis] (0,0) -- (-1.3,-.86) node[below left] {$\theta_3$};
+			\node[below=1pt] at (t0) {$\theta_0^{(D)}$};
+			\node[left=2pt] at (ts) {$\theta_*^{(D)}$};
+		\end{tikzpicture}
+		\par\smallskip\raggedright\small
+		\setlength{\abovedisplayskip}{3pt}\setlength{\belowdisplayskip}{3pt}
+		\begin{itemize}
+			\item\vphantom{$\theta_0^{(D)}$}Solution set $\mathcal S$ has dimension $s$; the \emph{intrinsic dimension} is its codimension
+			      \[D=d_{\rm int}+s\]
+			\item Here $D=3$, $s=1$ (a line), so $d_{\rm int}=2$.
+		\end{itemize}
+		\column{.47\textwidth}\centering
+		\textbf{(b) Search a $d=2$ affine subspace}\par\smallskip
+		\begin{tikzpicture}[idfig]
+			\useasboundingbox (-2.7,-1.15) rectangle (2.7,3.2);
+			\pic {axes};
 			\filldraw[plane] (-.95,.05) -- (2.25,.55) -- (.70,2.35) -- (-2.50,1.85) -- cycle;
-			\coordinate (t0) at (.78,.65); \coordinate (ts) at (-.58,1.45);
+			\coordinate (t0) at (1.0,1.6); \coordinate (ts) at (-.58,1.45);
 			\coordinate (entry) at (-1.00687,.11603);
 			\draw[semithick] (-1.156,-.35) -- (entry);
 			\draw[solution] (entry) -- (ts);
-			\draw[semithick] (ts) -- (-.116,2.9) node[above left] {$\mathcal S$};
-			\draw[update] (t0) -- (ts) node[pos=.48,above right,fill=gray!25,inner sep=1pt] {$P\theta_*^{(d)}$};
+			\draw[semithick] (ts) -- (-.116,2.9) node[left=1pt] {$\mathcal S$};
+			\draw[update] (t0) -- (ts) node[pos=.5,above=2pt,inner sep=1pt] {$P\theta_*^{(d)}$};
 			\node[point] at (t0) {}; \node[point] at (ts) {};
-			\node[right=2pt] at (t0) {$\theta_0^{(D)}$};
-			\node[left=3pt] at (ts) {$\theta_*^{(D)}$};
-			\node[font=\footnotesize\bfseries] at (.35,3.7) {(b) Search a $d=2$ affine subspace};
-		\end{scope}
-	\end{tikzpicture}
-	\par\medskip\raggedright\small
-	\begin{columns}[T]
-		\column{.48\textwidth}
+			\node[below=1pt] at (t0) {$\theta_0^{(D)}$};
+			\node[left=2pt] at (ts) {$\theta_*^{(D)}$};
+		\end{tikzpicture}
+		\par\smallskip\raggedright\small
+		\setlength{\abovedisplayskip}{3pt}\setlength{\belowdisplayskip}{3pt}
 		\begin{itemize}
-			\item Solution set $\mathcal S$ has dimension $s$; the \emph{intrinsic dimension} is its codimension: $D=d_{\rm int}+s$.
-			\item Here $D=3$, $s=1$ (a line), so $d_{\rm int}=2$.
-		\end{itemize}
-		\column{.48\textwidth}
-		\begin{itemize}
-			\item Keep $\theta_0^{(D)}$ and a random $P\in\mathbb R^{D\times d}$ fixed; optimize only $\theta^{(d)}\in\mathbb R^d$:
-			      $\theta_*^{(D)}=\theta_0^{(D)}+P\theta_*^{(d)}$.
+			\item Keep $\theta_0^{(D)}$ and a random $P\in\mathbb R^{D\times d}$ fixed; optimize only $\theta^{(d)}\in\mathbb R^d$
+			      \[\theta_*^{(D)}=\theta_0^{(D)}+P\theta_*^{(d)}\]
 			\item Fine-tuning pretrained LMs needs only small $d$ (Aghajanyan et al.): the motivation for LoRA.
 		\end{itemize}
 	\end{columns}
@@ -121,7 +126,7 @@
 		\item Fine-tuning has low \emph{intrinsic dimension}: a small random subspace, $d\ll D$, is enough (Li et al.; Aghajanyan et al.).
 		\item Intrinsic dimension counts free coordinates of the whole parameter vector; rank is a property of each matrix $\Delta W$. Low $d$ motivates, but does not prove, low rank.
 		\item \textbf{LoRA hypothesis:} task-specific weight changes have low matrix rank,
-		      \[\operatorname{rank}(\Delta W)\ll\min(d,k).\]
+		      \[\operatorname{rank}(\Delta W)\ll\min(d,k)\]
 		\item Consequence if it holds: freeze $W_0$ and learn only a factorised $\Delta W=AB$.
 	\end{itemize}
 	\src{Report, Background, Low-Rank Structures, Fig.~2; Li et al. (2018); Aghajanyan et al. (2021); Hu et al. (2022).}\end{frame}
@@ -129,7 +134,7 @@
 % Quan: 1.5 minutes
 \begin{frame}{LoRA formulation}
 	\centering\Large $h=W_0x+\dfrac{\alpha}{r}ABx$\normalsize\medskip
-	\[W_0\in\mathbb R^{d\times k}\ \text{(frozen)},\quad A\in\mathbb R^{d\times r},\quad B\in\mathbb R^{r\times k},\quad x\in\mathbb R^{k},\quad r\ll\min(d,k).\]
+	\[W_0\in\mathbb R^{d\times k}\ \text{(frozen)},\qquad A\in\mathbb R^{d\times r},\qquad B\in\mathbb R^{r\times k},\qquad x\in\mathbb R^{k},\qquad r\ll\min(d,k)\]
 	\raggedright\begin{itemize}
 		\item Objective: $\min_\Theta-\sum_{(x,y)\in\mathcal D}\log P_{\Phi_0+\Delta\Phi(\Theta)}(y\mid x)$ with $|\Theta|\ll|\Phi_0|$.
 		\item Rank $r$ sets update capacity; scaling $\alpha/r$ reduces retuning when $r$ changes.
@@ -169,17 +174,17 @@
 	\begin{columns}[T]
 		\column{.5\textwidth}
 		\textbf{Full fine-tuning} updates every entry:
-		\[N_{\rm full}=d\cdot k=1024\times1024=1{,}048{,}576.\]
+		\[N_{\rm full}=d\cdot k=1024\times1024=1{,}048{,}576\]
 		\textbf{LoRA} trains only the two factors:
-		\[|A|=|B|=1024r\ \Rightarrow\ N_{\rm LoRA}=r(d+k)=2048r.\]
+		\[|A|=|B|=1024r\ \Rightarrow\ N_{\rm LoRA}=r(d+k)=2048r\]
 		\textbf{Example, $r=4$:} $|A|=|B|=4{,}096$, so $N_{\rm LoRA}=8{,}192$.
 		\[\begin{aligned}
-				\text{ratio}     & =\frac{1{,}048{,}576}{8{,}192}=128\times, \\
-				\text{reduction} & =1-\frac{1}{128}=99.21875\%.
+				\text{ratio}     & =\frac{1{,}048{,}576}{8{,}192}=128\times \\
+				\text{reduction} & =1-\frac{1}{128}=99.21875\%
 			\end{aligned}\]
 		\column{.47\textwidth}
 		In general, for this square matrix:
-		\[\text{ratio}=\frac{dk}{r(d+k)}=\frac{512}{r},\qquad\text{reduction}=1-\frac{r}{512}.\]
+		\[\text{ratio}=\frac{dk}{r(d+k)}=\frac{512}{r}\qquad\text{reduction}=1-\frac{r}{512}\]
 		\centering\setlength{\tabcolsep}{4pt}\begin{tabular}{@{}rrrrr@{}}\toprule
 			$r$  & $|A|=|B|$ & $N$       & Ratio       & Reduction  \\\midrule
 			full & --        & 1,048,576 & $1\times$   & 0\%        \\
@@ -227,7 +232,7 @@
 		\begin{itemize}
 			\item Subspaces $\mathcal U,\mathcal V\subseteq\mathbb R^d$ are orthogonal if $u^\top v=0$ for all $u\in\mathcal U$, $v\in\mathcal V$.
 			\item For $\mathcal U_i=\operatorname{col}(A_i)$, $\mathcal U_t=\operatorname{col}(A_t)$, it suffices to check the columns:
-			      \[\mathcal U_i\perp\mathcal U_t\iff A_i^\top A_t=0\in\mathbb R^{r\times r}.\]
+			      \[\mathcal U_i\perp\mathcal U_t\iff A_i^\top A_t=0\in\mathbb R^{r\times r}\]
 			\item Entry $(A_i^\top A_t)_{pq}$ is the inner product of column $p$ of $A_i$ and column $q$ of $A_t$, so $\|A_i^\top A_t\|_F^2$ measures overlap and is $0$ only when orthogonal.
 		\end{itemize}
 		\column{.48\textwidth}
@@ -245,9 +250,9 @@
 	\small
 	\begin{itemize}
 		\item One LoRA update per task; $W_0$ and earlier factors $\{A_i,B_i\}_{i<t}$ are frozen while $A_t,B_t$ train:
-		      \[W_t=W_0+\sum_{i=1}^{t}\tfrac{\alpha}{r}A_iB_i.\]
+		      \[W_t=W_0+\sum_{i=1}^{t}\tfrac{\alpha}{r}A_iB_i\]
 		\item Penalise overlap between the current subspace and every earlier one:
-		      \[\mathcal L_t=\mathcal L_{\rm task}+\lambda\sum_{i=1}^{t-1}\bigl\|A_i^\top A_t\bigr\|_F^2,\qquad \lambda>0.\]
+		      \[\mathcal L_t=\mathcal L_{\rm task}+\lambda\sum_{i=1}^{t-1}\bigl\|A_i^\top A_t\bigr\|_F^2\qquad \lambda>0\]
 		\item No replay data needed; updates can be merged into $W_t$, so inference needs no task ID.
 		\item A finite $\lambda$ encourages, but does not guarantee, orthogonality or zero forgetting; adapter storage grows with $T$.
 	\end{itemize}

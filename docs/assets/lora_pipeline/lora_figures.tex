@@ -1,0 +1,74 @@
+% Bodies of the LoRA diagrams, shared by the standalone figures
+% (lora_training/inference/merge.tex) and the combined lora_pipeline.tex.
+% Layout: two columns at x = -2.2 and x = 2.2 (box width 3.4cm, 1cm gap),
+% centre column at x = 0, rows every 1.6cm.
+
+% ---------------------------------------------------------------
+% Training: frozen path and trainable low-rank path, then the loss
+% and an update that reaches only A and B.
+% ---------------------------------------------------------------
+\newcommand{\LoraTrainingBody}{%
+	\node[plain] (input) at (0,0) {Input $x$};
+	\node[frozen] (base) at (-2.2,-1.6) {Frozen layer\\$W_0x$};
+	\node[adapter] (bproj) at (2.2,-1.6) {Down-project\\$Bx\in\mathbb R^{r}$};
+	\node[adapter] (aproj) at (2.2,-3.2) {Up-project\\$A(Bx)\in\mathbb R^{d}$};
+	\node[adapter] (scale) at (2.2,-4.8) {Scale by\\$s=\alpha/r$};
+	\node[op] (sum) at (0,-6.2) {$+$};
+	\node[result] (output) at (0,-7.6) {Output\\$h=W_0x+sABx$};
+	\node[plain] (loss) at (0,-9.2) {Task loss $\mathcal L$};
+	\node[plain] (backprop) at (0,-10.8) {Backpropagation};
+	\node[adapter] (update) at (0,-12.4) {Update $A$, $B$ only};
+	%
+	\node[group, fit=(bproj)(aproj)] (factors) {};
+	\node[group-label, anchor=south east] at (factors.north east) {trainable};
+	\node[group-label, text=blue!50!black, anchor=south west] at (base.north west) {frozen};
+	%
+	\draw[arrow] (input.west) -| (base.north);
+	\draw[arrow] (input.east) -| (factors.north);
+	\draw[arrow] (bproj) -- (aproj);
+	\draw[arrow] (factors.south) -- (scale.north);
+	\draw[arrow] (base.south) |- (sum.west);
+	\draw[arrow] (scale.south) |- (sum.east);
+	\draw[arrow] (sum) -- (output);
+	\draw[arrow] (output) -- (loss);
+	\draw[arrow] (loss) -- (backprop);
+	\draw[arrow] (backprop) -- (update);
+	\draw[feedback] (update.east) -| ($(factors.east)+(0.7,0)$) -- (factors.east);
+}
+
+% ---------------------------------------------------------------
+% Inference with a separate adapter: two paths summed.
+% ---------------------------------------------------------------
+\newcommand{\LoraInferenceBody}{%
+	\node[plain] (input) at (0,0) {Input $x$};
+	\node[frozen] (base) at (-2.2,-1.6) {Frozen layer\\$W_0x$};
+	\node[adapter] (adapter) at (2.2,-1.6) {Adapter\\$sABx$};
+	\node[op] (sum) at (0,-3.0) {$+$};
+	\node[result] (output) at (0,-4.4) {Output\\$h=W_0x+sABx$};
+	%
+	\draw[arrow] (input.west) -| (base.north);
+	\draw[arrow] (input.east) -| (adapter.north);
+	\draw[arrow] (base.south) |- (sum.west);
+	\draw[arrow] (adapter.south) |- (sum.east);
+	\draw[arrow] (sum) -- (output);
+}
+
+% ---------------------------------------------------------------
+% Merge and deploy: fold sAB into W0 once, then one multiplication.
+% ---------------------------------------------------------------
+\newcommand{\LoraMergeBody}{%
+	\node[frozen] (base) at (-2.2,0) {Frozen weights\\$W_0$};
+	\node[adapter] (adapter) at (2.2,0) {Trained adapter\\$sAB$, $s=\alpha/r$};
+	\node[op] (sum) at (0,-1.4) {$+$};
+	\node[result] (merged) at (0,-2.8) {Merged weights\\$W_{\mathrm{merged}}=W_0+sAB$};
+	\node[plain] (multiply) at (0,-4.4) {One matrix multiply\\$W_{\mathrm{merged}}\,x$};
+	\node[plain] (input) at (-4.4,-4.4) {Input $x$};
+	\node[result] (output) at (0,-6.0) {Output $h$};
+	%
+	\draw[arrow] (base.south) |- (sum.west);
+	\draw[arrow] (adapter.south) |- (sum.east);
+	\draw[arrow] (sum) -- (merged);
+	\draw[arrow] (merged) -- (multiply);
+	\draw[arrow] (input) -- (multiply);
+	\draw[arrow] (multiply) -- (output);
+}
