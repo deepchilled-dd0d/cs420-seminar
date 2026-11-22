@@ -50,8 +50,9 @@
 	\normalsize\medskip
 	\begin{enumerate}
 		\item Background: ways to adapt a pretrained model; why low-rank updates.
-		\item Method: LoRA formulation, training, inference and merging; O-LoRA for sequential tasks.
+		\item Method: LoRA formulation, training, inference and merging.
 		\item Worked example: trainable parameters for one $1024\times1024$ matrix ($r=4,8,16$).
+		\item O-LoRA for sequential tasks, compared with LoRA.
 		\item Experiment: LoRA vs.\ full fine-tuning of DistilRoBERTa on four-class AG News.
 		\item Trade-offs, limitations, and when LoRA fits.
 	\end{enumerate}
@@ -59,14 +60,15 @@
 
 % Quan: 1 minute
 \begin{frame}{Ways to adapt a pretrained model}
-	\centering\includegraphics[width=.92\textwidth,height=.62\textheight,keepaspectratio]{training_and_finetuning.png}
+	\centering\includegraphics[width=.92\textwidth,height=.56\textheight,keepaspectratio]{training_and_finetuning.png}
 	\par\medskip\footnotesize\begin{tabular}{@{}ll@{}}\toprule
-		Linear probing         & train only a head: $\hat y=W_{\rm head}\,h(x)+b$, $h(x)$ frozen          \\
-		Full fine-tuning       & update every weight: $h=(W_0+\Delta W)z$, $\Delta W$ full rank           \\
-		LoRA                   & $h=W_0z+\frac{\alpha}{r}ABz$, only $A,B$ trained                         \\
-		Adapter                & bottleneck after a layer: $h'=h+W_{\rm up}\sigma(W_{\rm down}h)$         \\
-		Prompt / prefix tuning & trainable vectors: $X'=[P;X]$ / $\operatorname{Attn}(Q,[P_K;K],[P_V;V])$ \\\bottomrule
+		Linear probing         & train only a head on the frozen backbone $f_{W_0}$: $\hat y=W_{\rm head}\,f_{W_0}(x)+b$ \\
+		Full fine-tuning       & update every weight: $h=(W_0+\Delta W)x$                                   \\
+		LoRA                   & only $A,B$ trained: $h=W_0x+\frac{\alpha}{r}ABx$                           \\
+		Adapter                & bottleneck after a layer: $h'=h+W_{\rm up}\,\sigma(W_{\rm down}h)$         \\
+		Prompt / prefix tuning & trainable vectors: $X'=[P;X]$ / $h=\operatorname{Attn}(Q,[P_K;K],[P_V;V])$ \\\bottomrule
 	\end{tabular}
+	\par\smallskip\scriptsize Notation: $x$ layer input, $h$ layer output ($h=W_0x$ when frozen), $X$ input token embeddings, $Q,K,V$ attention queries, keys and values.
 	\src{Report, Background, Fig.~1.}\end{frame}
 
 % Quan: 1.5 minutes
@@ -127,9 +129,9 @@
 		\item Intrinsic dimension counts free coordinates of the whole parameter vector; rank is a property of each matrix $\Delta W$. Low $d$ motivates, but does not prove, low rank.
 		\item \textbf{LoRA hypothesis:} task-specific weight changes have low matrix rank,
 		      \[\operatorname{rank}(\Delta W)\ll\min(d,k)\]
-		\item Consequence if it holds: freeze $W_0$ and learn only a factorised $\Delta W=AB$.
+		\item Consequence if it holds: freeze $W_0$ and learn only a factorized $\Delta W=AB$.
 	\end{itemize}
-	\src{Report, Background, Low-Rank Structures, Fig.~2; Li et al. (2018); Aghajanyan et al. (2021); Hu et al. (2022).}\end{frame}
+	\src{Report, Background, Low-Rank Structures, Fig.~3; Li et al. (2018); Aghajanyan et al. (2021); Hu et al. (2022).}\end{frame}
 
 % Quan: 1.5 minutes
 \begin{frame}{LoRA formulation}
@@ -251,7 +253,7 @@
 	\begin{itemize}
 		\item One LoRA update per task; $W_0$ and earlier factors $\{A_i,B_i\}_{i<t}$ are frozen while $A_t,B_t$ train:
 		      \[W_t=W_0+\sum_{i=1}^{t}\tfrac{\alpha}{r}A_iB_i\]
-		\item Penalise overlap between the current subspace and every earlier one:
+		\item Penalize overlap between the current subspace and every earlier one:
 		      \[\mathcal L_t=\mathcal L_{\rm task}+\lambda\sum_{i=1}^{t-1}\bigl\|A_i^\top A_t\bigr\|_F^2\qquad \lambda>0\]
 		\item No replay data needed; updates can be merged into $W_t$, so inference needs no task ID.
 		\item A finite $\lambda$ encourages, but does not guarantee, orthogonality or zero forgetting; adapter storage grows with $T$.
@@ -288,7 +290,7 @@
 		Learning rate & $2\times10^{-4}$                  & $2\times10^{-5}$ \\
 		LoRA config   & $r=8$, $\alpha=16$, dropout 0.05  & --               \\\bottomrule
 	\end{tabular}
-	\src{Report, Experiment, Table~2. Notebook config is $r=8$; the LoRA result files themselves do not record the rank.}\end{frame}
+	\src{Report, Experiment, Table~4. Notebook config is $r=8$; the LoRA result files themselves do not record the rank.}\end{frame}
 
 % Tinh: 1.5 minutes
 \begin{frame}{Results on the AG News test split}
@@ -314,7 +316,7 @@
 		\end{tabular}
 		\par\raggedright\smallskip 474 of 7,600 errors. Largest confusion: Business$\leftrightarrow$Sci/Tech (139 and 108 examples).
 	\end{columns}
-	\src{Report, Results, Tables 3--4; baseline\_results.csv.}\end{frame}
+	\src{Report, Results, Tables 5--6; metrics.csv, classification\_report.csv, predictions.csv, baseline\_results.csv.}\end{frame}
 
 % Tinh: 1 minute
 \begin{frame}{Limitations and when LoRA may not fit}
@@ -330,7 +332,7 @@
 		\end{itemize}
 		\column{.48\textwidth}\textbf{When LoRA may not be best}\small
 		\begin{itemize}
-			\item The task needs broad behaviour changes.
+			\item The task needs broad behavior changes.
 			\item The chosen rank misses the quality target.
 			\item Small models with ample compute, where full fine-tuning is simpler.
 			\item Deployment: separate adapters ease task switching; merged weights simplify serving one model.
