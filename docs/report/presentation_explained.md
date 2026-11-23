@@ -1,405 +1,345 @@
-# Slide-by-Slide Explanation — LoRA and O-LoRA
+# Slide-by-Slide Companion — LoRA and O-LoRA
 
-A detailed companion to `presentation.tex` (18 slides). For each slide it explains what is shown, why it is true, and how it connects to the rest of the talk, with likely audience questions where useful. Slide numbers follow the compiled deck. Speakers: Quan (slides 1–6), Tinh (7–10), Lac (11–18).
+A companion to `presentation.tex` (14 slides). It does **not** repeat what the slides show. For each slide, one line says what is on screen; the rest covers what the slide leaves out: derivations, intuition, worked numbers, caveats and links to other slides. Use it to prepare the talk and the Q&A.
 
-**Notation used throughout**
+Speakers: Quan (slides 1–5), Tinh (6–9), Lac (10–14). Literature citations are in each slide's footer; there is no references or conclusion slide.
+
+**Notation**
 
 | Symbol | Meaning |
 |---|---|
 | $W_0\in\mathbb R^{d\times k}$ | a pretrained weight matrix (frozen under LoRA) |
-| $x\in\mathbb R^{k}$, $h\in\mathbb R^{d}$ | layer input and layer output; $h=W_0x$ when frozen |
-| $\Delta W$ | the change to $W_0$ learned during fine-tuning |
-| $A\in\mathbb R^{d\times r}$, $B\in\mathbb R^{r\times k}$ | LoRA factors, $\Delta W=\tfrac{\alpha}{r}AB$ |
-| $r$ | LoRA rank, $r\ll\min(d,k)$ |
-| $\alpha$, $s=\alpha/r$ | scaling hyperparameter and resulting scale |
-| $\Phi_0$, $\Theta$ | all pretrained parameters; the trainable LoRA parameters |
-| $D$, $d$, $d_{\rm int}$ | full parameter dimension, subspace dimension, intrinsic dimension (slide 4 only) |
-| $A_t,B_t$, $\lambda$ | task-$t$ LoRA factors in O-LoRA; penalty weight |
+| $x\in\mathbb R^{k}$, $h\in\mathbb R^{d}$ | layer input and layer output |
+| $A\in\mathbb R^{d\times r}$, $B\in\mathbb R^{r\times k}$, $s=\alpha/r$ | LoRA factors and scale; $\Delta W=sAB$ |
+| $D$, $d$, $d_{\rm int}$ | slide 4 only: full parameter dimension, random-subspace dimension, intrinsic dimension |
 
-> **Naming convention.** The deck and report put $A$ on the output side ($d\times r$) and $B$ on the input side ($r\times k$), with $A$ Gaussian and $B=0$ at initialization. The original LoRA paper and the PEFT library use the opposite letters ($\Delta W = BA$, $B=0$). The mathematics is identical; only the names are swapped. The footnote on slide 6 says this.
+> **Two different $d$'s.** On slide 4, $d$ is the dimension of a random search subspace. From slide 5 on, $d$ is the number of rows of $W_0$. Slide 5 avoids the clash by writing "low intrinsic dimension" in words.
 
-> **Two different "$d$"s.** On slide 4, $d$ is the dimension of a random search subspace. From slide 6 onward, $d$ is the number of rows of $W_0$. They are unrelated.
+> **A and B naming.** The deck puts $A$ on the output side ($d\times r$, Gaussian init) and $B$ on the input side ($r\times k$, zero init). The LoRA paper and the PEFT library swap the letters ($\Delta W=BA$, $B=0$). Same mathematics; the slide 5 footer mentions it.
 
 ---
 
 ## Slide 1 — Title
 
-Title, authors (Thien-Lac Quach, Minh-Quan Pham Nguyen, Tinh Nguyen Van), CS420 Seminar Group 4, 23 November 2026.
+**On the slide:** title, subtitle, authors with student IDs, course and date.
+
+Nothing to add; the script opens with an audio/screen check and asks for questions in the chat.
 
 ---
 
-## Slide 2 — Guiding question and outline
+## Slide 2 — Outline
 
-**Guiding question:** *How much does LoRA reduce trainable parameters, and what evidence is needed to judge its quality and resource use?*
+**On the slide:** the guiding question and a six-item outline.
 
-The question deliberately has two parts with different kinds of answers:
+**Why this question.** LoRA is usually summarized by one number: how many fewer parameters it trains. Practitioners pay for something else: GPU memory, training time and accuracy. The question is built to separate the two:
 
-1. **"How much does it reduce trainable parameters?"** This is answered analytically. For one $d\times k$ matrix the count goes from $dk$ to $r(d+k)$ (slides 6 and 9).
-2. **"What evidence is needed to judge quality and resource use?"** This cannot be derived. It needs measurement: accuracy, training time and GPU memory, and an honest statement of what one experiment can and cannot show (slides 10, 14–16).
+- **The parameter count** can be derived on paper: per matrix, $dk\to r(d+k)$ (slides 5 and 8).
+- **Quality and resources** must be measured, and the measurement has limits (slides 9, 12–14).
 
-The outline maps onto the talk: background (3–5) → method (6–8) → worked example (9–10) → O-LoRA (11–13) → experiment (14–15) → trade-offs and conclusion (16–17).
+**How the outline maps to slides.** Background (3–5) → method (5–7) → worked examples (8–9) → O-LoRA (10–11) → experiment (12–13) → limitations (14). The question is answered aloud at the end of slide 14 (see *Wrap-up*).
 
 ---
 
-## Slide 3 — Ways to adapt a pretrained model
+## Slide 3 — Pretrained model adaptation
 
-The figure shows the usual pipeline: pre-train a large model on generic data, then adapt it to a downstream task. The table lists five ways to adapt, ordered roughly by *what* is trained.
+**On the slide:** the pretrain-then-adapt figure and a table of five methods with one formula each.
 
-| Method | Formula | What is trained | Notes |
+**Two questions that separate the five methods.**
+
+| Method | What is trained? | Inference cost? | Main weakness |
 |---|---|---|---|
-| Linear probing | $\hat y = W_{\rm head}\,f_{W_0}(x) + b$ | only a new head $W_{\rm head}, b$ | The backbone $f_{W_0}$ is a fixed feature extractor. Cheapest, but the features cannot adapt, so it often underperforms when the new task differs from pre-training. |
-| Full fine-tuning | $h=(W_0+\Delta W)x$ | every weight | Highest capacity. Needs gradients and optimizer state for every parameter, and a full-size checkpoint per task. |
-| LoRA | $h = W_0x + \frac{\alpha}{r}ABx$ | low-rank factors $A,B$ | Changes how each adapted layer computes, at a tiny parameter cost; can be merged after training (slide 8). |
-| Adapter | $h' = h + W_{\rm up}\,\sigma(W_{\rm down}h)$ | small bottleneck MLP inserted after a layer | $W_{\rm down}$ projects to a small dimension, $\sigma$ is a nonlinearity, $W_{\rm up}$ projects back; the residual "$h+$" keeps the original path. Because of $\sigma$ it **cannot** be merged into $W_0$, so it adds inference latency. |
-| Prompt / prefix tuning | $X'=[P;X]$ / $h=\operatorname{Attn}(Q,[P_K;K],[P_V;V])$ | trainable vectors $P$ | Prompt tuning prepends learned "soft tokens" to the input embeddings $X$. Prefix tuning prepends learned key/value vectors in every attention layer. Weights are untouched; the prefix uses up part of the sequence length. |
+| Linear probing | new head only | none | features cannot adapt to the task |
+| Full fine-tuning | everything | none | one full model copy per task; optimizer state for every weight |
+| LoRA | low-rank $A,B$ | none once merged (slide 7) | relies on the low-rank hypothesis (slide 5) |
+| Adapter | small bottleneck MLP | always some | the nonlinearity $\sigma$ prevents folding it into $W_0$ |
+| Prompt / prefix | extra input or key/value vectors | uses sequence length | can be harder to optimize; less expressive per parameter |
 
-**Key point.** LoRA is in the middle. Unlike linear probing it changes the internal computation. Unlike full fine-tuning it trains very few parameters. Unlike adapters, its update is linear, so it can be folded into $W_0$ with no inference cost.
+**Reading the formulas.**
+- In the linear-probing formula, $x$ is the *model* input; elsewhere it is a layer input.
+- Adapter: $W_{\rm down}$ projects to a small dimension, $\sigma$ is a nonlinearity, $W_{\rm up}$ projects back, and "$h+$" is a residual connection, so a zero adapter leaves the layer unchanged.
+- Prefix tuning prepends learned vectors $P_K,P_V$ to the keys and values in every attention layer, so every token can attend to them.
+
+**Key point.** LoRA's update is *linear*. That single property is what makes merging (slide 7) possible and separates it from adapters.
 
 ---
 
 ## Slide 4 — Intrinsic dimension of an objective
 
-This slide explains the idea behind LoRA, from Li et al. (2018) and Aghajanyan et al. (2021).
+**On the slide:** two 3-D panels, the definition $D=d_{\rm int}+s$, and the random-subspace formula $\theta^{(D)}=\theta_0^{(D)}+P\theta^{(d)}$.
 
-### Panel (a): what intrinsic dimension means
+**Why the solution set is large.** Modern networks are heavily over-parameterized, so many weight settings fit the data equally well. Moving *along* the solution set $\mathcal S$ changes nothing; only directions *crossing* it matter. Their number is $d_{\rm int}$.
 
-- The full parameter space has $D$ dimensions (here $D=3$, axes $\theta_1,\theta_2,\theta_3$).
-- Training moves from the starting point $\theta_0^{(D)}$ to a solution $\theta_*^{(D)}$.
-- In practice the solutions do not form a single point. They form a **solution set** $\mathcal S$ of dimension $s$: many parameter settings are equally good. In the picture $\mathcal S$ is a line, so $s=1$.
-- The **intrinsic dimension** is the codimension of $\mathcal S$:
-  $$D = d_{\rm int} + s \quad\Longrightarrow\quad d_{\rm int} = 3-1 = 2.$$
-  Intuitively, moving along $\mathcal S$ changes nothing, so only $d_{\rm int}$ directions actually matter for reaching it.
+**When a random subspace hits the solution set.** A $d$-dimensional subspace and an $s$-dimensional set in $D$-space generally intersect when $d+s\ge D$, i.e. $d\ge d_{\rm int}$. Panel (b) is the borderline case $d=d_{\rm int}=2$.
 
-### Panel (b): how it is measured
+**How it is measured in practice.** Increase $d$ until the model reaches a fixed fraction (typically 90%) of full-training performance; that $d$ is reported as the intrinsic dimension. $P$ is random on purpose: if even an unchosen subspace works, the problem genuinely needs few directions.
 
-- Fix the start $\theta_0^{(D)}$ and a **random** projection $P\in\mathbb R^{D\times d}$.
-- Optimize only a small vector $\theta^{(d)}\in\mathbb R^{d}$; the full parameters are always
-  $$\theta^{(D)} = \theta_0^{(D)} + P\,\theta^{(d)}.$$
-  So the search is restricted to a $d$-dimensional affine subspace (the grey plane).
-- A $d$-dimensional subspace and an $s$-dimensional solution set in $D$-space generally intersect when $d + s \ge D$, that is, when $d\ge d_{\rm int}$. Here the plane ($d=2$) crosses the line $\mathcal S$ at $\theta_*^{(D)}$, so the problem is solvable inside the plane.
-- In practice, $d_{\rm int}$ is estimated as the smallest $d$ that reaches a set fraction (e.g. 90%) of full-training performance.
-
-### Why it matters
-
-Aghajanyan et al. found that fine-tuning pretrained language models has a **very low** intrinsic dimension. A random subspace of a few hundred to a few thousand dimensions can recover most of full fine-tuning performance, even though the model has hundreds of millions of parameters. Larger pretrained models tend to have *lower* intrinsic dimension. This suggests that the fine-tuning update lives in a small subspace, which is the starting point for LoRA.
+**What Aghajanyan et al. found.**
+- Optimizing about **200** numbers through a random projection brought RoBERTa to 90% of full fine-tuning performance on the MRPC paraphrase task.
+- Larger models, and models pretrained longer, have **lower** intrinsic dimension. Pretraining appears to compress what fine-tuning needs to learn, which is exactly the regime where LoRA is used.
 
 ---
 
-## Slide 5 — Why a low-rank update?
+## Slide 5 — Why a low-rank update, and LoRA formulation
 
-This slide states the LoRA hypothesis and how it differs from the intrinsic-dimension result.
+**On the slide:** left, three short motivation bullets and the hypothesis $\operatorname{rank}(\Delta W)\ll\min(d,k)$; right, the LoRA formula, shapes, objective, scaling, initialization and cost.
 
-1. **Low-rank structure is common.** Oymak et al. (2019) showed that the Jacobians of trained networks are approximately low rank. Hu et al. (2022) observed that learned updates have a few dominant directions.
-2. **Fine-tuning has low intrinsic dimension** (slide 4): $d\ll D$ suffices.
-3. **The two are not the same.**
-   - *Intrinsic dimension* counts free coordinates of the **whole** parameter vector, searched through one random global projection $P$.
-   - *Rank* is a property of **one matrix** $\Delta W$: the dimension of its column space.
-   - A low $d_{\rm int}$ does not mathematically imply that each $\Delta W$ is low rank, and vice versa. Low intrinsic dimension *motivates* the low-rank assumption but does not *prove* it.
-4. **LoRA hypothesis:** the task-specific change to each weight matrix has low rank,
-   $$\operatorname{rank}(\Delta W)\ll\min(d,k).$$
-5. **Consequence.** If the hypothesis holds, we lose little by forcing $\Delta W$ to be low rank. Any matrix of rank $\le r$ can be written as a product $AB$ with $A\in\mathbb R^{d\times r}$, $B\in\mathbb R^{r\times k}$, so we learn $A$ and $B$ instead of $\Delta W$.
+### Left column: what the bullets leave out
 
-**Possible question:** *"Is the hypothesis true?"* — It is an empirical claim. Hu et al. report that very small ranks (even $r=1$–$8$ on GPT-3's attention matrices) match full fine-tuning on many benchmarks. Our experiment does not test it directly, because we ran only one rank (slide 16).
+**Low-rank structure (bullet 1).** Oymak et al. show that the Jacobian of a trained network is approximately low rank: the outputs are sensitive to only a few directions in weight space, so learning mostly happens along those directions.
 
----
+**Why low intrinsic dimension does not prove low rank (bullet 3).** This is the subtle point of the slide.
+- Intrinsic dimension is about the *whole* parameter vector, searched through one random global projection $P$.
+- Rank is a property of *each matrix* $\Delta W$.
+- In the random-subspace experiment, the update $P\theta^{(d)}$ assigns each weight matrix a random mixture of directions, so each $\Delta W$ is typically **full rank**, even though the whole update lives in a tiny subspace.
 
-## Slide 6 — LoRA formulation
+So the low rank of each $\Delta W$ is a separate claim. LoRA states it as a hypothesis and lets the method's results test it. Hu et al. report that very small ranks (even $r=1$–$8$ on GPT-3's attention matrices) match full fine-tuning on many benchmarks, which supports it empirically.
 
-$$h = W_0x + \frac{\alpha}{r}ABx,\qquad W_0\in\mathbb R^{d\times k}\ (\text{frozen}),\ A\in\mathbb R^{d\times r},\ B\in\mathbb R^{r\times k},\ x\in\mathbb R^{k},\ r\ll\min(d,k).$$
+**From hypothesis to formula.** Any matrix of rank $\le r$ factors as $AB$ with $A\in\mathbb R^{d\times r}$, $B\in\mathbb R^{r\times k}$. If the hypothesis holds, restricting $\Delta W$ to that form loses little, which is the bridge to the right column.
 
-**Shapes.** $Bx\in\mathbb R^{r}$ (compress), $A(Bx)\in\mathbb R^{d}$ (expand), and $W_0x\in\mathbb R^{d}$, so the two terms can be added. The product $AB$ is $d\times k$, the same shape as $W_0$, but $\operatorname{rank}(AB)\le r$.
+### Right column: why each design choice
 
-**Objective.** Full fine-tuning solves
-$$\min_{\Phi}\ -\sum_{(x,y)\in\mathcal D}\log P_{\Phi}(y\mid x).$$
-LoRA keeps the pretrained $\Phi_0$ fixed and optimizes only $\Theta$, which defines the update $\Delta\Phi(\Theta)$:
-$$\min_{\Theta}\ -\sum_{(x,y)\in\mathcal D}\log P_{\Phi_0+\Delta\Phi(\Theta)}(y\mid x),\qquad |\Theta|\ll|\Phi_0|.$$
-$\Theta$ is the collection of all $(A,B)$ pairs, one per adapted matrix.
+**Shapes.** $Bx\in\mathbb R^r$ compresses, $A(Bx)\in\mathbb R^d$ expands, so $AB$ has the shape of $W_0$ but rank at most $r$.
 
-**Rank and scaling.**
-- $r$ sets capacity: the update can move $W_0$ in at most $r$ independent output directions.
-- The factor $\alpha/r$ keeps the size of the update roughly stable when $r$ changes. Without it, a larger $r$ (more summed terms) would give a larger update at the same learning rate, so the learning rate would need retuning each time. With it, one can usually fix $\alpha$ (often $\alpha=2r$ or a constant such as 16) and sweep $r$.
+**Objective.** $\Theta$ is the set of all $(A,B)$ pairs, one per adapted matrix. Only $\Theta$ is optimized; $\Phi_0$ never changes.
 
-**Initialization.** $A\sim$ Gaussian, $B=0$, so $AB=0$ and at step 0 the model computes exactly $W_0x$. Training therefore starts from the pretrained model rather than a randomly perturbed one. Only one factor can be zero: if both were zero, both gradients would be zero ($\partial/\partial A\propto (\cdot)(Bx)^\top=0$ and $\partial/\partial B\propto A^\top(\cdot)=0$) and nothing would ever train. With $A\ne0$, $B$ gets a nonzero gradient at step 1, and $A$ starts receiving gradient once $B$ becomes nonzero.
+**Why $\alpha/r$.** A larger $r$ sums more rank-1 terms, so without the scaling the update would grow just from changing $r$, and the learning rate would need retuning each time. With it, one fixes $\alpha$ (we use $\alpha=16$, i.e. $s=2$ at $r=8$) and varies $r$ freely.
 
-**Cost per adapted matrix.**
-$$\text{full: } dk \qquad\text{LoRA: } |A|+|B| = dr + rk = r(d+k).$$
-Gradients and optimizer states (e.g. Adam's $m,v$) exist only for trainable parameters, so they shrink by the same ratio. The stored per-task checkpoint shrinks too: only $A,B$ (and any trained head) need saving.
+**Why $A$ Gaussian and $B=0$.**
+- $B=0$ makes $AB=0$, so step 0 is *exactly* the pretrained model; training cannot damage it on step one.
+- Both cannot be zero. The gradients are $\partial\mathcal L/\partial A\propto(\cdot)(Bx)^\top$ and $\partial\mathcal L/\partial B\propto A^\top(\cdot)$, so with both zero neither ever moves.
+- With $A\ne0$, $B$ gets a gradient at step 1, and $A$ starts moving once $B\ne0$.
+
+**Cost.** $r(d+k)$ instead of $dk$ per matrix; gradients and optimizer states shrink by the same ratio, and the saved per-task checkpoint shrinks too. Slide 8 puts numbers on this.
 
 ---
 
-## Slide 7 — LoRA training: only $A$ and $B$ receive gradients
+## Slide 6 — LoRA training
 
-The diagram follows one adapted layer during training:
+**On the slide:** a diagram of the two paths and four bullets: two paths, scaling, only $A,B$ updated, $W_0$ still stored and used.
 
-1. **Two paths from the same input $x$.** The frozen path computes $W_0x$. The adapter path computes $Bx\in\mathbb R^r$ (bottleneck), then $A(Bx)\in\mathbb R^d$.
-2. **Scale and add.** $h = W_0x + s\,ABx$ with $s=\alpha/r$.
-3. **Backward pass.** The loss gradient flows back through $h$, so we get $\partial\mathcal L/\partial h$ as usual. From it:
-   $$\frac{\partial\mathcal L}{\partial A} = s\,\frac{\partial\mathcal L}{\partial h}(Bx)^\top,\qquad \frac{\partial\mathcal L}{\partial B} = s\,A^\top\frac{\partial\mathcal L}{\partial h}\,x^\top.$$
-   The gradient with respect to $x$ still flows through both paths ($W_0^\top$ and $sB^\top A^\top$) to earlier layers. However, no gradient **for $W_0$** is computed or stored, and the optimizer never updates it.
-4. **$W_0$ is still used.** It must be in memory and is multiplied in every forward pass (and its transpose in the backward pass). LoRA removes $W_0$'s *training* cost (gradient, optimizer state) but not its *storage* or *compute* cost. Slide 10 builds on this.
+**What freezing does and does not save.** The backward pass needs two kinds of gradient:
+- **Gradients for activations**, which flow to earlier layers through $W_0^\top$ (and $sB^\top A^\top$). These are still computed, because earlier layers' adapters need them.
+- **Gradients for weights.** For $W_0$ this would be $\frac{\partial\mathcal L}{\partial h}x^\top$; it is **not** computed. For the factors:
+  $$\frac{\partial\mathcal L}{\partial A}=s\,\frac{\partial\mathcal L}{\partial h}(Bx)^\top,\qquad \frac{\partial\mathcal L}{\partial B}=s\,A^\top\frac{\partial\mathcal L}{\partial h}\,x^\top.$$
 
-In the experiment, LoRA dropout (0.05) is applied to $x$ on the adapter path only, as regularization.
+So LoRA skips the weight gradient and optimizer step for $W_0$, but the forward pass and most of the backward pass remain. **Training gets faster, but not in proportion to the parameter cut**, which is what slide 13 shows (≈ 29% faster).
 
----
-
-## Slide 8 — After training: separate adapter or merged weights
-
-Because the LoRA update is linear in $x$:
-$$W_0x + sABx = (W_0 + sAB)\,x.$$
-
-**Option 1 — keep the adapter separate (left).**
-- Inference computes both paths, $W_0x + sABx$: a small extra matrix product per adapted layer.
-- One base model in memory can serve many tasks, each with a few-MB adapter, and switching tasks means swapping adapters.
-- An adapter is only valid for the exact base model it was trained on; it is meaningless without the matching $W_0$.
-
-**Option 2 — merge (right).**
-- Compute once: $W_{\rm merged} = W_0 + sAB$.
-- The layer is again a single $d\times k$ matrix multiplication, identical in cost to the original, so there is **no extra inference latency** from LoRA. Adapters (slide 3) cannot do this because of their nonlinearity $\sigma$.
-- To switch tasks you can unmerge by subtracting $sAB$ (up to floating-point rounding) or keep a copy of $W_0$.
-
-**Trade-off.** Separate adapters suit multi-task serving; merging suits serving one specialized model as fast as possible.
+**Detail not on the slide.** In our experiment, LoRA dropout (0.05) is applied to $x$ on the adapter path only.
 
 ---
 
-## Slide 9 — Worked example: counting trainable parameters
+## Slide 7 — LoRA after training
 
-**Setup:** one matrix $W_0\in\mathbb R^{1024\times1024}$, so $d=k=1024$. Weights only: no biases, no classifier.
+**On the slide:** two diagrams, one keeping the adapter separate ($W_0x+sABx$) and one merging it ($W_{\rm merged}=W_0+sAB$).
 
-**Full fine-tuning:** $N_{\rm full} = dk = 1024^2 = 1{,}048{,}576$.
+**Why merging is possible.** Linearity: $W_0x+sABx=(W_0+sAB)\,x$. Computing $W_0+sAB$ once gives a matrix with the original shape, so inference is exactly as fast as the original layer. Adapters (slide 3) cannot do this because $\sigma$ is not linear.
 
-**LoRA:** $|A| = 1024r$, $|B| = 1024r$, so $N_{\rm LoRA} = r(d+k) = 2048r$.
+**Why keeping adapters separate is attractive: storage.**
+- LoRA paper (GPT-3, $r=4$ on query/value): per-task checkpoint ≈ **35 MB instead of ≈ 350 GB**.
+- Our run, FP32: LoRA weights $147{,}456\times4$ B ≈ **0.6 MB**, plus the classifier head ≈ 2.4 MB, versus ≈ 330 MB for the full DistilRoBERTa model.
 
-**Example $r=4$:** $|A|=|B|=4{,}096$, $N_{\rm LoRA}=8{,}192$.
-$$\text{ratio} = \frac{1{,}048{,}576}{8{,}192} = 128,\qquad \text{reduction} = 1-\frac{1}{128} = 0.9921875 = 99.21875\%.$$
-
-**General formula for a square $n\times n$ matrix:**
-$$\text{ratio} = \frac{dk}{r(d+k)} = \frac{n^2}{2nr} = \frac{n}{2r} = \frac{512}{r},\qquad \text{reduction} = 1-\frac{r}{512}.$$
-
-| $r$ | $\lvert A\rvert=\lvert B\rvert$ | $N$ | Ratio | Reduction |
-|---|---|---|---|---|
-| full | — | 1,048,576 | $1\times$ | 0% |
-| 4 | 4,096 | 8,192 | $128\times$ | 99.21875% |
-| 8 | 8,192 | 16,384 | $64\times$ | 98.4375% |
-| 16 | 16,384 | 32,768 | $32\times$ | 96.875% |
-
-**Observations.**
-- $N_{\rm LoRA}$ is linear in $r$: doubling $r$ doubles the cost and halves the ratio.
-- The ratio $n/(2r)$ grows with $n$. LoRA saves *more* on larger matrices, which is why it is attractive for very large models (for GPT-3, $n=12{,}288$, so $r=4$ gives a ratio of 1,536 per matrix).
-- LoRA only saves parameters when $r(d+k)<dk$, i.e. $r < dk/(d+k)$ = 512 here. In practice $r$ is far below this.
-- This counts **one matrix**. A whole model adapts many matrices and usually also trains a task head, so the whole-model percentage differs. In our experiment it is 0.8944% (slide 14).
+**Practicalities.**
+- To switch tasks after merging, subtract $sAB$ (exact up to floating-point rounding) or keep a clean copy of $W_0$.
+- A separate adapter is useless without the exact base model it was trained on.
+- Unmerged adapters add one small extra product ($Bx$, then $A(\cdot)$) per adapted layer. The cost is small but nonzero; we did not measure it.
 
 ---
 
-## Slide 10 — Worked example: trainable parameters ≠ GPU memory
+## Slide 8 — LoRA example: counting trainable parameters
 
-**What training must hold in memory:**
+**On the slide:** the full count $1{,}048{,}576$, the LoRA count $2048r$, the $r=4$ example (128×, 99.21875%), the general $512/r$ rule and a table for $r=4,8,16$.
 
-| Component | Full FT | LoRA |
+**Where $512/r$ comes from.** For a square $n\times n$ matrix:
+$$\frac{dk}{r(d+k)}=\frac{n^2}{2nr}=\frac{n}{2r}.$$
+
+**What follows from it.**
+- **The saving grows with matrix size.** GPT-3's matrices have $n=12{,}288$, so the same $r=4$ gives $1{,}536\times$. This is why LoRA matters most for very large models.
+- **Break-even.** LoRA saves parameters only while $r<dk/(d+k)$, which is 512 here. Practical ranks are about 4–64.
+- **Linear in $r$.** Doubling $r$ doubles the cost and halves the ratio, as the table shows.
+
+**Connecting to our experiment.**
+
+| | Count |
+|---|---|
+| One $768\times768$ query or value matrix, full | 589,824 |
+| Same matrix, LoRA $r=8$: $8(768+768)$ | 12,288 (48× fewer) |
+| All 12 adapted matrices (6 layers × query, value) | 147,456 |
+| New classifier head ($768\times768+768$, $768\times4+4$) | 593,668 |
+| **Trainable total** | **741,124 = 0.8944% of ≈ 83 M** |
+
+So **80% of what we actually train is the classifier head**, which every method must train. The adapters alone are under 0.2% of the model.
+
+---
+
+## Slide 9 — LoRA example: trainable parameters ≠ GPU memory
+
+**On the slide:** which memory components each method needs, and a byte count for the $1024\times1024$ matrix (16 MiB vs ≈ 4.13 MiB, ≈ 3.9×).
+
+**The rule of thumb behind the 3.9×.** With Adam in FP32, full fine-tuning stores **four numbers per weight**: the weight, its gradient, and Adam's $m$ and $v$ (16 bytes). LoRA removes the last three for frozen weights but must keep the weight (4 bytes). So:
+
+- on weight-related memory, the saving can never exceed **4×**, however small $r$ is;
+- the frozen $W_0$ sets a floor, and $r$ only decides how close to 4× you get ($16/4.125\approx3.88$ at $r=4$).
+
+**Why real runs save even less.** Activations are needed by both methods for backpropagation, and they scale with batch size × sequence length × hidden size × layers. They add the same amount to both sides, pulling the ratio toward 1×. Mixed precision (FP16/BF16 weights, often with FP32 master copies) changes the byte counts but not this reasoning.
+
+**The same pattern in the LoRA paper.** On GPT-3, LoRA reduces trainable parameters about **10,000×** but GPU memory only about **3×**. Our experiment (slide 13, ≈ 2× less peak memory) fits the same pattern.
+
+---
+
+## Slide 10 — O-LoRA: orthogonality and core hypothesis
+
+**On the slide:** the sequential-task setting, the definition of orthogonal subspaces, the test $A_i^\top A_t=0$, and the hypothesis that orthogonal update subspaces interfere less.
+
+**What forgetting looks like.** If task 2 is learned by moving the same weight directions that task 1 relied on, task 1's behavior is overwritten. Nothing in plain LoRA prevents this.
+
+**Why checking columns is enough.** Every vector in $\operatorname{col}(A_i)$ is $A_ia$, and every vector in $\operatorname{col}(A_t)$ is $A_tb$, so
+$$(A_ia)^\top(A_tb)=a^\top(A_i^\top A_t)\,b=0\ \ \forall a,b\iff A_i^\top A_t=0 .$$
+Checking $r^2$ column pairs replaces checking infinitely many vectors.
+
+**Why $A$ and not $B$.** $sA_tB_tx=A_t(sB_tx)$ is always a combination of $A_t$'s columns, whatever $x$ is. So $\operatorname{col}(A_t)$ is the set of **output directions** task $t$ can change. $B_t$ only decides *how much* of each direction to use for a given input.
+
+**Why the squared Frobenius norm.** $\|A_i^\top A_t\|_F^2=\sum_{p,q}(A_i^\top A_t)_{pq}^2$ sums every pairwise overlap into one smooth, differentiable number that is zero only for exact orthogonality, which makes it suitable as a loss term.
+
+**Limits of the idea.**
+- **Capacity.** At most $\lfloor d/r\rfloor$ mutually orthogonal rank-$r$ subspaces fit in $\mathbb R^d$: 96 for $d=768$, $r=8$.
+- **Heuristic, not proof.** Orthogonal output directions in one layer do not guarantee zero interference; later layers mix directions, and inputs from different tasks overlap.
+
+---
+
+## Slide 11 — O-LoRA: method
+
+**On the slide:** the accumulated weight $W_t$, the loss $\mathcal L_t=\mathcal L_{\rm task}+\lambda\sum_i\|A_i^\top A_t\|_F^2$, and properties (no replay, no task ID, no guarantee, growing storage).
+
+**Reading the loss.**
+- $\mathcal L_{\rm task}$ is computed with *all* earlier updates in place, so the new task is learned on top of the old ones.
+- $\lambda$ is a trade-off: larger values force more orthogonality but leave less freedom to fit the new task; too small and the penalty does nothing.
+- Only $A_t$ is penalized; $B_t$ is unconstrained.
+
+**Why "no task ID" matters: contrast with separate adapters.**
+
+| | One LoRA per task, kept separate | O-LoRA |
 |---|---|---|
-| Original $W_0$ | trainable | frozen, but **kept** |
-| Adapter $A,B$ | — | trainable |
-| Gradients | for $W_0$ | for $A,B$ only |
-| Adam $m,v$ | for $W_0$ | for $A,B$ only |
-| Activations | required | required |
-| Temporary tensors | required | required |
+| Interference | none (never combined) | reduced by the penalty |
+| Inference | must know the task to pick the adapter | one merged model, no task label |
+| Old data | not needed | not needed |
 
-LoRA saves only the rows that depend on *trainable* parameters: gradients and optimizer state. Weights, activations and workspace remain.
+**Why "no replay".** Old tasks are protected through their frozen $A_i$ matrices, not stored examples. This helps where privacy or storage rules out keeping old data.
 
-**Byte count** for the $1024\times1024$ matrix, $r=4$, FP32 (4 bytes/value), Adam (2 states per trainable value), activations excluded:
+**Footer detail.** As in our experiment, the paper applies LoRA to the attention query and value matrices.
 
-| Memory | Full FT | LoRA $r=4$ |
-|---|---|---|
-| Weights | $1{,}048{,}576\times4$ B $=4$ MiB | $4$ MiB $+$ $8{,}192\times4$ B $=4$ MiB $+$ 32 KiB |
-| Gradients | 4 MiB | 32 KiB |
-| Adam $m$ and $v$ | $2\times4$ MiB $=8$ MiB | $2\times32$ KiB $=64$ KiB |
-| **Total** | **16 MiB** | **4 MiB + 128 KiB = 4.125 MiB ≈ 4.13 MiB** |
-
-Reduction: $16/4.125\approx3.88\approx3.9\times$, compared with $128\times$ for trainable parameters.
-
-**Why the gap?** Full fine-tuning costs about $4\times$ the weight size (weights + gradient + 2 Adam states). LoRA removes the last three for $W_0$, so the best possible saving on this matrix approaches $4\times$, no matter how small $r$ is. The frozen $W_0$ sets a floor.
-
-**Activations make it narrower still.** Activations scale with batch size × sequence length × hidden size and are needed by both methods for backpropagation. In a real run they can be a large share of memory, which pushes the measured ratio further toward $1\times$. This is why the experiment shows memory roughly **halved** (slide 15) rather than cut by $100\times$. Mixed precision (BF16/FP16), which the experiment uses, changes the byte counts but not this reasoning.
-
----
-
-## Slide 11 — O-LoRA: orthogonality and the core hypothesis
-
-### Setting: continual learning
-
-Tasks $\mathcal D_1,\dots,\mathcal D_T$ arrive one at a time, and at step $t$ only $\mathcal D_t$ is available (no stored data from earlier tasks). Training on task $t$ can overwrite what was learned for tasks $1,\dots,t-1$. This is **catastrophic forgetting**.
-
-### Orthogonal subspaces
-
-- Two subspaces $\mathcal U,\mathcal V\subseteq\mathbb R^d$ are orthogonal if $u^\top v=0$ for every $u\in\mathcal U$, $v\in\mathcal V$.
-- Let $\mathcal U_i=\operatorname{col}(A_i)$, the span of the $r$ columns of $A_i\in\mathbb R^{d\times r}$. Every vector in it is $A_i a$ for some $a\in\mathbb R^r$; likewise $\mathcal U_t$. Then
-  $$(A_ia)^\top(A_tb) = a^\top(A_i^\top A_t)\,b\quad\forall a,b \;=\;0 \iff A_i^\top A_t = 0\in\mathbb R^{r\times r}.$$
-  So checking the $r^2$ pairs of columns is enough; no need to check every vector.
-- Entry $(A_i^\top A_t)_{pq}$ is the inner product of column $p$ of $A_i$ with column $q$ of $A_t$. Hence
-  $$\|A_i^\top A_t\|_F^2 = \sum_{p,q}\big((A_i^\top A_t)_{pq}\big)^2 \ \ge 0,$$
-  which is zero exactly when every pair of columns is orthogonal. It is a smooth, differentiable measure of overlap, suitable as a loss term.
-
-### O-LoRA hypothesis
-
-- The update for task $t$ is $\tfrac{\alpha}{r}A_tB_tx = A_t\big(\tfrac{\alpha}{r}B_tx\big)$, a linear combination of $A_t$'s columns. So whatever $x$ is, the update **always lies in $\operatorname{col}(A_t)$**. That column space is taken as an approximation of task $t$'s *update subspace*: the low-dimensional set of output directions in which task $t$ changes the layer (motivated by the low-rank structure of gradient updates).
-- If task $t$'s update directions are orthogonal to those of earlier tasks, then for the outputs that earlier tasks care about, the new update adds a component in directions they did not use, so it should **interfere less**.
-- Method in one line: one LoRA per task, subspaces kept approximately orthogonal.
-
-**Caveat.** Orthogonality of output directions is a heuristic for less interference, not a proof of zero interference. Later layers mix directions, and inputs from different tasks overlap. This is why slide 12 says "encourages, not guarantees".
-
----
-
-## Slide 12 — O-LoRA: method
-
-**Accumulated weight.** Each task $i$ has its own $(A_i,B_i)$. After learning tasks $1..t$:
-$$W_t = W_0 + \sum_{i=1}^{t}\tfrac{\alpha}{r}A_iB_i.$$
-While training task $t$, $W_0$ and $\{A_i,B_i\}_{i<t}$ are frozen; only $A_t,B_t$ train.
-
-**Loss for task $t$:**
-$$\mathcal L_t = \underbrace{-\sum_{(x,y)\in\mathcal D_t}\log P_{\Phi_t}(y\mid x)}_{\mathcal L_{\rm task}} \;+\; \lambda\sum_{i=1}^{t-1}\big\|A_i^\top A_t\big\|_F^2,\qquad \lambda>0.$$
-- The first term fits the current task with all earlier updates in place.
-- The second term penalizes overlap between $\operatorname{col}(A_t)$ and every earlier $\operatorname{col}(A_i)$.
-- $\lambda$ trades off the two: larger $\lambda$ gives more orthogonality but less freedom to fit task $t$.
-- Only $A_t$ appears in the penalty, because $A$ defines the output subspace; $B_t$ is unconstrained.
-
-**Properties.**
-- **No replay data.** Earlier tasks are "remembered" through their frozen factors $A_i$, not through stored examples. This helps where privacy or storage rules out keeping old data.
-- **No task ID at inference.** All updates are summed into $W_t$, so one model handles inputs from any task. (Methods that keep a separate adapter per task must be told which adapter to use.)
-- **Constraint is soft.** With finite $\lambda$, $A_i^\top A_t$ is small but generally not zero, so neither perfect orthogonality nor zero forgetting is guaranteed.
-- **Storage grows with $T$.** The $(A_i,B_i)$ factors are kept to compute future penalties. Also, at most $d/r$ mutually orthogonal rank-$r$ subspaces fit in $\mathbb R^d$, so the approach has a capacity limit for very long task sequences.
-- In Wang et al. (2023), LoRA is applied to the attention **query and value** matrices, the same targets as in our experiment.
-
----
-
-## Slide 13 — LoRA and O-LoRA compared
+### Background for Q&A: LoRA vs. O-LoRA (no longer a slide)
 
 | Aspect | LoRA | O-LoRA |
 |---|---|---|
-| Objective | adapt with few trainable parameters | learn sequential tasks with limited interference |
-| Trained | low-rank $A,B$ for one task | current $A_t,B_t$; earlier factors frozen |
-| Loss | task loss | task loss $+\ \lambda\cdot$ orthogonality penalty |
-| Forgetting | no explicit mechanism | aims to mitigate; no guarantee |
-| Storage | one small adapter per task you keep | grows with number of tasks |
-| Inference | chosen adapter may be merged | updates accumulated into weights; factors kept for further learning |
+| Goal | adapt with few trainable parameters | learn tasks in sequence with limited interference |
+| Trained | $A,B$ for one task | current $A_t,B_t$; earlier factors frozen |
+| Loss | task loss | task loss + $\lambda\cdot$ orthogonality penalty |
+| Forgetting | no mechanism | reduced, not guaranteed |
+| Storage | one adapter per kept task | grows with the number of tasks |
 
-**How to read it.** O-LoRA is LoRA plus two things: (1) a per-task structure where earlier adapters are frozen, and (2) a regularizer that pushes new adapters into unused directions. Training plain LoRA on task 2 starting from a model with task 1 merged has no such protection, because nothing stops the new update from overwriting task 1's directions.
-
-**Caution on the last line of the slide.** The LoRA and O-LoRA papers use different base models, datasets and settings, so their reported numbers cannot be compared directly. The table compares *design*, not *performance*.
+The two papers use different models, data and settings, so their numbers cannot be compared directly; the table compares design only. We did not run O-LoRA.
 
 ---
 
-## Slide 14 — Experiment setup
+## Slide 12 — Experiment setup
 
-**Model and data.** `distilroberta-base` (a 6-layer distilled RoBERTa, hidden size 768) with a sequence-classification head, on AG News (Zhang et al., 2015): news articles in four balanced classes — World, Sports, Business, Sci/Tech. The test split has 7,600 examples (1,900 per class).
+**On the slide:** model and data; split, preprocessing and training settings; checkpoint selection; a LoRA vs. full fine-tuning table (what is trained, 0.8944%, learning rates, LoRA config).
 
-**Protocol (identical for both runs).**
-- **Validation:** a stratified 10% of the official training split, seed 42. Stratified means each class keeps its proportion. Used for model selection.
-- **Test:** the official 7,600-example split, evaluated **once**, at the end, so it is never used for tuning.
-- Max length 256 tokens; mixed precision (BF16 if supported, else FP16) on one GPU.
-- 3 epochs; per-device batch 8 with 4 gradient-accumulation steps, so effective batch 32.
-- AdamW, weight decay 0.01, linear learning-rate decay with warmup over the first 6% of steps.
-- Evaluate each epoch; keep the checkpoint with the best **validation macro F1**.
+**Why each choice.**
 
-**What differs.**
-
-| | LoRA | Full fine-tuning |
-|---|---|---|
-| Trained | query/value LoRA adapters + classifier | entire model |
-| Share trained | 0.8944% | 100% |
-| Learning rate | $2\times10^{-4}$ | $2\times10^{-5}$ |
-| LoRA config | $r=8$, $\alpha=16$ ($s=2$), dropout 0.05 | — |
-
-**Where 0.8944% comes from.** LoRA parameters: 6 layers × 2 matrices (query, value) × $r(d+k)=8(768+768)=12{,}288$ → **147,456**. The classification head is newly initialized and must be trained in both methods: dense $768\times768+768$ plus output $768\times4+4$ → **593,668**. Trainable total 741,124, which PEFT reports as 0.8944% of all parameters. Most of the trainable budget is actually the classifier head, not the adapters.
-
-**Why the learning rates differ.** LoRA factors start at or near zero and are few, so they usually need a larger learning rate (around $10^{-4}$). Full fine-tuning uses a small rate (around $10^{-5}$) to avoid destroying pretrained features. Each is a standard choice for its method, but it means the comparison is not a single controlled variable (slide 16).
-
-**Macro F1.** Compute F1 $=2PR/(P+R)$ for each class and average the four values without weighting. On a balanced test set it is very close to accuracy, which is why the two numbers on slide 15 nearly coincide.
-
-**Provenance note (footer).** The notebook config says $r=8$, but the saved LoRA result files do not record the rank. The report flags this.
-
----
-
-## Slide 15 — Results on the AG News test split
-
-### LoRA vs. full fine-tuning
-
-| Measure | LoRA | Full FT | Difference |
-|---|---|---|---|
-| Accuracy | 93.76% | 95.03% | −1.26 pp |
-| Macro F1 | 93.76% | 95.03% | −1.27 pp |
-| Test loss | 0.1930 | 0.1812 | +0.012 |
-| Train wall time | 47.31 min | 66.38 min | −19.07 min (≈ −29%) |
-| Peak allocated | 1.099 GiB | 2.138 GiB | −1.039 GiB (≈ −49%) |
-| Peak reserved | 1.369 GiB | 2.297 GiB | −0.928 GiB |
-
-**Interpretation.**
-- **Quality.** Training under 1% of the parameters costs about 1.3 points of accuracy here. Whether that is acceptable depends on the application.
-- **Time.** LoRA is faster, but not 100× faster. The forward pass and most of the backward pass (gradients with respect to activations, through the frozen $W_0$) are still computed. LoRA mainly skips weight gradients for $W_0$ and the optimizer update for the frozen parameters.
-- **Memory.** Peak allocated memory roughly halves, matching slide 10: frozen weights, activations and workspace remain.
-- **Allocated vs. reserved.** *Allocated* is memory held by live tensors. *Reserved* is what PyTorch's caching allocator has claimed from the GPU (allocated plus cached free blocks). Reserved is what other processes cannot use.
-
-### LoRA per-class results
-
-| Class | Precision | Recall | F1 |
-|---|---|---|---|
-| World | 0.955 | 0.942 | 0.949 |
-| Sports | 0.982 | 0.988 | 0.985 |
-| Business | 0.912 | 0.897 | 0.905 |
-| Sci/Tech | 0.902 | 0.923 | 0.912 |
-
-- **Precision** for class $c$: of the items predicted $c$, the fraction that are truly $c$. **Recall**: of the items truly $c$, the fraction found.
-- Sports is easiest (distinctive vocabulary). Business and Sci/Tech are hardest.
-- **Errors:** 7,600 − 7,126 correct = **474** errors (6.24%). The largest confusion is Business ↔ Sci/Tech: **139** Business articles predicted Sci/Tech and **108** Sci/Tech predicted Business, so 247 of the 474 errors (52%). Many articles (tech companies' earnings, telecom deals) plausibly belong to both, so part of this error may be label ambiguity rather than model weakness.
-- This matches the per-class numbers: Business recall (0.897) is the lowest because Business items leak into Sci/Tech, and Sci/Tech precision (0.902) is the lowest because it receives them.
-
----
-
-## Slide 16 — Limitations and when LoRA may not fit
-
-### Limits of our evidence
-
-| Limitation | Why it matters |
+| Choice | Reason |
 |---|---|
-| One run per method | No variance estimate. A 1.26 pp gap could partly be seed noise; repeated runs would give confidence intervals. |
-| Different learning rates | The gap mixes the effect of the method with the effect of the learning rate, so it cannot be attributed to LoRA alone. |
-| No rank sweep | We cannot say how quality depends on $r$, or whether a larger $r$ would close the gap. |
-| Evaluation runtimes (~30 s each) | Not a controlled latency benchmark (data loading and batching dominate); merged vs. unmerged inference was not timed. |
-| $1024\times1024$ example | Illustrates one matrix; it is not a whole-model memory measurement. |
-| O-LoRA not evaluated | Everything on slides 11–13 comes from the paper, not from our experiments. |
+| **Stratified** 10% validation split | keeps the four classes balanced in validation, like the test set |
+| Test split used **once** | no decision is tuned on it, so the reported numbers are unbiased |
+| Select by **macro F1** | weights every class equally; on balanced data it is almost the same as accuracy |
+| Batch 8 × 4 accumulation | an effective batch of 32 that fits in limited GPU memory |
+| BF16/FP16 | halves activation and weight memory; BF16 when supported, as it is more numerically robust |
+| Linear schedule, 6% warmup | avoids large early updates while the new classifier head is still random |
 
-### When LoRA may not be the best choice
+**Why the learning rates differ (10×).** LoRA's $B$ starts at zero and there are few trainable numbers, so they need a larger step (≈ $10^{-4}$). Full fine-tuning uses a small step (≈ $10^{-5}$) so as not to wreck pretrained features. Both are standard, but the comparison now changes **two** things at once (slide 14).
 
-- **The task needs broad behavior changes** (e.g. a new language or domain far from pre-training). The low-rank hypothesis may fail, and full fine-tuning's capacity may be needed.
-- **The chosen rank misses the quality target.** Raising $r$ adds parameters; at some point another method may be better.
-- **Small models with ample compute.** Savings are small in absolute terms, and full fine-tuning is simpler (no extra library, no rank/α/target choices). In our case, DistilRoBERTa full fine-tuning used only ~2.1 GiB.
-- **Deployment needs.** Separate adapters ease multi-task switching; merged weights simplify serving one model. The right choice depends on how the model will be served.
+**What 0.8944% contains.** See the breakdown under slide 8: 147,456 adapter + 593,668 classifier parameters, out of ≈ 83 M. Most of it is the head.
+
+**Model.** DistilRoBERTa is RoBERTa-base distilled to 6 layers (hidden size 768). AG News (Zhang et al.) has 1,900 test articles per class.
+
+**Footer note.** The notebook sets $r=8$, but the saved LoRA result files do not record the rank, so the rank comes from the configuration, not the results.
 
 ---
 
-## Slide 17 — Conclusion
+## Slide 13 — Results on the AG News test split
 
-This slide answers the guiding question from slide 2, point by point:
+**On the slide:** a comparison table (accuracy, macro F1, loss, wall time, peak memory), the per-class table for LoRA, the error count and the main confusion.
 
-| Part of question | Answer | Evidence |
+**Putting the 1.26 pp gap in perspective.**
+- Full fine-tuning: $7{,}600\times(1-0.950263)\approx$ **378 errors**. LoRA: **474 errors**.
+- So LoRA makes about **96 more mistakes, ≈ 25% more**, even though the accuracy gap looks small.
+- Exact gaps: accuracy 1.2631 pp, macro F1 1.2661 pp. Subtracting the *rounded* table values gives 1.27 for both.
+
+**Why the resource savings are modest (links to slides 6 and 9).**
+- **Time:** 47.31 vs. 66.38 min is ≈ 29% faster, not 100×, because the forward pass and the activation gradients through the frozen model still run.
+- **Memory:** 1.099 vs. 2.138 GiB peak allocated is ≈ 49% less, because the frozen weights and the activations remain.
+- This is the LoRA paper's "10,000× parameters, 3× memory" pattern again.
+
+**Allocated vs. reserved.** *Allocated* is memory held by live tensors. *Reserved* is what PyTorch's caching allocator has claimed from the GPU, including cached free blocks. Reserved is what other processes cannot use.
+
+**Reading the per-class table.**
+- 139 Business→Sci/Tech plus 108 Sci/Tech→Business = 247 errors, **52% of all 474**.
+- That one confusion explains the two weakest numbers: Business has the lowest **recall** (0.897) because its articles leak into Sci/Tech, and Sci/Tech has the lowest **precision** (0.902) because it receives them.
+- Many such articles are genuinely ambiguous (a tech company's earnings, a telecom deal), so part of the error may be label ambiguity rather than model weakness.
+- Sports is easiest because its vocabulary is distinctive.
+- Macro F1 ≈ accuracy because the test set is balanced (1,900 per class).
+
+---
+
+## Slide 14 — Limitations
+
+**On the slide:** six limits of our evidence and four situations where LoRA may not be best.
+
+**What would fix each limit.**
+
+| Limit (on slide) | Why it matters | What would fix it |
 |---|---|---|
-| How much fewer trainable parameters? | Rank-4 LoRA: 8,192 vs. 1,048,576 for one $1024\times1024$ matrix (99.22% fewer, $128\times$). In the whole DistilRoBERTa run, 0.8944% of parameters trained. | Slides 9, 14 |
-| Quality? | 93.76% accuracy/macro F1 vs. 95.03% for full FT (−1.26 pp). | Slide 15 |
-| Resource use? | 47.31 vs. 66.38 min; 1.099 vs. 2.138 GiB peak allocated. Real savings, but far smaller than the parameter ratio. | Slides 10, 15 |
-| Sequential tasks? | O-LoRA adds per-task LoRAs with an orthogonality penalty. | Slides 11–13 |
-| What evidence is still missing? | Repeated runs, matched learning rates, rank sweep, merged vs. unmerged latency. | Slide 16 |
+| One run per method | a 1.26 pp gap may be partly seed noise | 3–5 seeds per method, report mean ± spread |
+| Different learning rates | the gap mixes method and learning-rate effects | tune the learning rate for each method separately |
+| No rank comparison | cannot say whether a larger $r$ closes the gap | repeat with $r=4,8,16$ |
+| ≈ 30 s evaluation runtimes | dominated by data loading and batching; not latency | time single predictions, merged vs. unmerged |
+| $1024\times1024$ example | one matrix, not a whole-model memory figure | measure memory per component in the real run |
+| O-LoRA not evaluated | slides 10–11 rest on the paper only | run a task sequence with and without the penalty |
 
-**Take-away:** LoRA fits when limiting trained parameters matters (storage of many task variants, limited GPU memory, very large models) **and** the measured quality trade-off is acceptable for the task.
+**The common thread in "when LoRA may not be best".** All four come back to the low-rank hypothesis or to practicality:
+- **Broad behavior change** (a new language, a domain far from pretraining): the needed $\Delta W$ may not be low rank.
+- **Rank misses the quality target:** raising $r$ erodes the savings; at some point full fine-tuning is simpler.
+- **Small model, ample compute:** e.g. our full fine-tuning needed only ≈ 2.1 GiB, so LoRA's savings matter little, and full fine-tuning has fewer hyperparameters (no rank, $\alpha$ or target modules).
+- **Deployment:** separate adapters suit multi-task serving; merged weights suit one fast model.
 
 ---
 
-## Slide 18 — References
+## Wrap-up — answering the guiding question (spoken, no slide)
 
-- **Hu et al. (2022)**, ICLR — the original LoRA paper: formulation, initialization, $\alpha/r$ scaling, merging.
-- **Wang et al. (2023)**, Findings of EMNLP — O-LoRA: per-task LoRA with orthogonality penalty for continual learning.
-- **Li et al. (2018)**, ICLR — introduces intrinsic dimension via random subspace training (slide 4).
-- **Aghajanyan et al. (2021)**, ACL — shows that fine-tuning pretrained LMs has low intrinsic dimension (slides 4–5).
-- **Oymak et al. (2019)** — low-rank Jacobian structure in neural networks (slide 5).
-- **Zhang et al. (2015)**, NeurIPS — introduces the AG News classification benchmark (slide 14).
-- **Our CS420 seminar report** — full derivations, tables and result files behind every slide.
+At the end of slide 14, the speaker answers the question from slide 2:
+
+| Part of the question | Answer | Evidence |
+|---|---|---|
+| How much fewer trainable parameters? | 128× for one $1024\times1024$ matrix at $r=4$; 0.8944% of DistilRoBERTa trained in our run (mostly the head) | slides 8, 12 |
+| Quality? | 1.26 pp lower accuracy (≈ 25% more errors) | slide 13 |
+| Resources? | ≈ 29% faster training, ≈ half the peak memory: real, but far smaller than the parameter ratio | slides 9, 13 |
+| Sequential tasks? | O-LoRA adds per-task LoRAs with an orthogonality penalty | slides 10–11 |
+| What is still missing? | repeated runs, matched learning rates, rank sweep, latency | slide 14 |
+
+**Take-away:** LoRA fits when limiting trained parameters matters (many task variants, limited GPU memory, very large models) **and** the measured quality trade-off is acceptable.
+
+---
+
+## Sources — where each citation appears
+
+| Work | Footer of | Used for |
+|---|---|---|
+| Li et al. (ICLR 2018) | slides 4, 5 | intrinsic dimension via random-subspace training |
+| Aghajanyan et al. (ACL 2021) | slides 4, 5 | low intrinsic dimension of LM fine-tuning (≈ 200 parameters for 90% on MRPC) |
+| Oymak et al. (arXiv 2019) | slide 5 | low-rank Jacobian structure |
+| Hu et al. (ICLR 2022) | slides 5–7 | LoRA; GPT-3 figures (10,000× parameters, 3× memory, 350 GB → 35 MB checkpoints) |
+| Wang et al. (Findings of EMNLP 2023) | slides 10, 11 | O-LoRA |
+| Zhang et al. (NeurIPS 2015) | slide 12 | AG News benchmark |
 
 ---
 
@@ -407,14 +347,16 @@ This slide answers the guiding question from slide 2, point by point:
 
 **Q: Why apply LoRA only to query and value?** Hu et al. found that adapting $W_q$ and $W_v$ gives most of the benefit for a fixed parameter budget, and O-LoRA uses the same targets. Adapting more modules (keys, output projection, MLP) is possible and increases the parameter count.
 
-**Q: Why does memory not drop by 100× if parameters do?** Frozen weights must still be stored and used, and activations scale with batch and sequence length for both methods. LoRA removes only gradients and optimizer states for frozen weights (slide 10).
+**Q: Why does memory not drop by 100× if parameters do?** With Adam, at most ≈ 4× can be saved on weight-related memory, because the frozen weights stay. Activations, the same for both methods, narrow it further (slide 9).
 
-**Q: Does LoRA slow down inference?** Not if merged: $W_0+sAB$ is a single matrix of the original size. Unmerged adapters add a small extra matrix product per adapted layer. We did not measure this.
+**Q: Does LoRA slow down inference?** Not if merged: $W_0+sAB$ is a single matrix of the original size. Unmerged adapters add a small extra product per adapted layer. We did not measure it.
 
-**Q: How do you choose $r$?** Empirically, usually $4$–$64$. Start small and increase until validation quality stops improving. We used $r=8$ and did not sweep.
+**Q: How do you choose $r$?** Empirically, usually 4–64: start small and increase until validation quality stops improving. We used $r=8$ and did not sweep.
 
-**Q: Is the 1.26 pp gap significant?** We cannot say from one run per method with different learning rates. That is exactly the limitation on slide 16.
+**Q: Is the 1.26 pp gap significant?** We cannot say from one run per method with different learning rates (slide 14). In error counts it is 474 vs. ≈ 378.
 
-**Q: How is O-LoRA different from training several independent LoRAs?** Independent LoRAs need a task ID at inference to choose the adapter. O-LoRA sums all updates into one model and uses the orthogonality penalty so that the summed updates interfere less.
+**Q: Why is most of the 0.8944% the classifier?** The new head ($\approx$ 594 K parameters) must be trained by every method and is larger than all twelve rank-8 adapters together (≈ 147 K).
 
-**Q: What happens when there are more tasks than fit orthogonally?** At most $\lfloor d/r\rfloor$ mutually orthogonal rank-$r$ subspaces exist in $\mathbb R^d$ (e.g. 96 for $d=768$, $r=8$). Beyond that, overlap is unavoidable and the penalty cannot reach zero.
+**Q: How is O-LoRA different from training several independent LoRAs?** Independent LoRAs need a task label at inference to choose the adapter. O-LoRA merges everything into one model and uses the penalty so the merged updates interfere less.
+
+**Q: What happens when there are more tasks than fit orthogonally?** At most $\lfloor d/r\rfloor$ orthogonal rank-$r$ subspaces exist in $\mathbb R^d$ (96 for $d=768$, $r=8$). Beyond that, overlap is unavoidable and the penalty cannot reach zero.

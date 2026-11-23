@@ -14,8 +14,14 @@
   \kern1em\vskip4pt
   \global\let\srctext\empty}
 % Madrid's shadowed rounded boxes make pgf leak a "5" into nullfont under
-% XeTeX/tectonic ("Missing character" warning); keep the boxes rounded, drop the shadow.
-\setbeamertemplate{title page}[default][colsep=-4bp,rounded=true,shadow=false]
+% XeTeX/tectonic ("Missing character" warning); drop the shadow (title box square, blocks rounded).
+\setbeamertemplate{title page}[default][colsep=-4bp,rounded=false,shadow=false]
+% Title page: larger title, readable author/institute/date lines.
+\setbeamerfont{title}{size=\LARGE,series=\bfseries}
+\setbeamerfont{subtitle}{size=\large}
+\setbeamerfont{author}{size=\normalsize}
+\setbeamerfont{institute}{size=\small}
+\setbeamerfont{date}{size=\small}
 \setbeamertemplate{blocks}[rounded][shadow=false]
 \usepackage{amsmath,amssymb,booktabs,graphicx,array,tikz}
 \usetikzlibrary{arrows.meta}
@@ -37,39 +43,40 @@
 }
 \graphicspath{{../assets/}}
 \newcommand{\src}[1]{\gdef\srctext{#1}}
-\title{LoRA and O-LoRA: Parameter-Efficient Fine-Tuning of Large Models}
-\author{Thien-Lac Quach \and Minh-Quan Pham Nguyen \and Tinh Nguyen Van}
+\title{LoRA and O-LoRA}
+\subtitle{Parameter-Efficient Fine-Tuning of Large Models}
+\author{Thien-Lac Quach (24125092) \and Minh-Quan Pham Nguyen (24125041) \\[4pt] \and Tinh Nguyen Van (24125106)}
 \institute{CS420 Seminar -- Group 4}\date{23 November 2026}
 \begin{document}
 \begin{frame}\titlepage\end{frame}
 
-% ===================== Quan: ~6 minutes =====================
+% ===================== Quan: ~5.5 minutes =====================
 % Quan: 1 minute
-\begin{frame}{Guiding question and outline}
+\begin{frame}{Outline}
 	\large How much does LoRA reduce trainable parameters, and what evidence is needed to judge its quality and resource use?
 	\normalsize\medskip
 	\begin{enumerate}
 		\item Background: ways to adapt a pretrained model; why low-rank updates.
 		\item Method: LoRA formulation, training, inference and merging.
 		\item Worked example: trainable parameters for one $1024\times1024$ matrix ($r=4,8,16$).
-		\item O-LoRA for sequential tasks, compared with LoRA.
+		\item O-LoRA for sequential tasks.
 		\item Experiment: LoRA vs.\ full fine-tuning of DistilRoBERTa on four-class AG News.
 		\item Trade-offs, limitations, and when LoRA fits.
 	\end{enumerate}
-	\src{Report, Abstract and Introduction.}\end{frame}
+\end{frame}
 
 % Quan: 1 minute
-\begin{frame}{Ways to adapt a pretrained model}
+\begin{frame}{Pretrained model adaptation}
 	\centering\includegraphics[width=.92\textwidth,height=.56\textheight,keepaspectratio]{training_and_finetuning.png}
 	\par\medskip\footnotesize\begin{tabular}{@{}ll@{}}\toprule
 		Linear probing         & train only a head on the frozen backbone $f_{W_0}$: $\hat y=W_{\rm head}\,f_{W_0}(x)+b$ \\
-		Full fine-tuning       & update every weight: $h=(W_0+\Delta W)x$                                   \\
-		LoRA                   & only $A,B$ trained: $h=W_0x+\frac{\alpha}{r}ABx$                           \\
-		Adapter                & bottleneck after a layer: $h'=h+W_{\rm up}\,\sigma(W_{\rm down}h)$         \\
-		Prompt / prefix tuning & trainable vectors: $X'=[P;X]$ / $h=\operatorname{Attn}(Q,[P_K;K],[P_V;V])$ \\\bottomrule
+		Full fine-tuning       & update every weight: $h=(W_0+\Delta W)x$                                                \\
+		LoRA                   & only $A,B$ trained: $h=W_0x+\frac{\alpha}{r}ABx$                                        \\
+		Adapter                & bottleneck after a layer: $h'=h+W_{\rm up}\,\sigma(W_{\rm down}h)$                      \\
+		Prompt / prefix tuning & trainable vectors: $X'=[P;X]$ / $h=\operatorname{Attn}(Q,[P_K;K],[P_V;V])$              \\\bottomrule
 	\end{tabular}
 	\par\smallskip\scriptsize Notation: $x$ layer input, $h$ layer output ($h=W_0x$ when frozen), $X$ input token embeddings, $Q,K,V$ attention queries, keys and values.
-	\src{Report, Background, Fig.~1.}\end{frame}
+\end{frame}
 
 % Quan: 1.5 minutes
 \begin{frame}{Intrinsic dimension of an objective}
@@ -119,35 +126,34 @@
 			\item Fine-tuning pretrained LMs needs only small $d$ (Aghajanyan et al.): the motivation for LoRA.
 		\end{itemize}
 	\end{columns}
-	\src{Report, Background, Low-Rank Structures, Fig.~2 (adapted from Li et al., 2018); Aghajanyan et al. (2021).}\end{frame}
+	\src{Figure adapted from Li et al. (ICLR 2018); Aghajanyan et al. (ACL 2021).}\end{frame}
 
-% Quan: 1 minute
-\begin{frame}{Why a low-rank update?}
-	\begin{itemize}
-		\item Many learning problems and trained networks show low-rank structure (Oymak et al.; Hu et al.).
-		\item Fine-tuning has low \emph{intrinsic dimension}: a small random subspace, $d\ll D$, is enough (Li et al.; Aghajanyan et al.).
-		\item Intrinsic dimension counts free coordinates of the whole parameter vector; rank is a property of each matrix $\Delta W$. Low $d$ motivates, but does not prove, low rank.
-		\item \textbf{LoRA hypothesis:} task-specific weight changes have low matrix rank,
-		      \[\operatorname{rank}(\Delta W)\ll\min(d,k)\]
-		\item Consequence if it holds: freeze $W_0$ and learn only a factorized $\Delta W=AB$.
-	\end{itemize}
-	\src{Report, Background, Low-Rank Structures, Fig.~3; Li et al. (2018); Aghajanyan et al. (2021); Hu et al. (2022).}\end{frame}
-
-% Quan: 1.5 minutes
-\begin{frame}{LoRA formulation}
-	\centering\Large $h=W_0x+\dfrac{\alpha}{r}ABx$\normalsize\medskip
-	\[W_0\in\mathbb R^{d\times k}\ \text{(frozen)},\qquad A\in\mathbb R^{d\times r},\qquad B\in\mathbb R^{r\times k},\qquad x\in\mathbb R^{k},\qquad r\ll\min(d,k)\]
-	\raggedright\begin{itemize}
-		\item Objective: $\min_\Theta-\sum_{(x,y)\in\mathcal D}\log P_{\Phi_0+\Delta\Phi(\Theta)}(y\mid x)$ with $|\Theta|\ll|\Phi_0|$.
-		\item Rank $r$ sets update capacity; scaling $\alpha/r$ reduces retuning when $r$ changes.
-		\item Initialization: $A$ Gaussian, $B=0$, so $AB=0$ and training starts from exactly $W_0x$.
-		\item Per adapted matrix: train $r(d+k)$ parameters instead of $dk$; gradients and optimizer states shrink accordingly.
-	\end{itemize}
-	\src{Report, Method, LoRA; Hu et al. (2022). Factor names follow the report; some papers swap $A$ and $B$.}\end{frame}
+% Quan: 2 minutes
+\begin{frame}{Why a low-rank update, and LoRA formulation}
+	\begin{columns}[T]
+		\column{.43\textwidth}\textbf{Why low rank?}\small
+		\begin{itemize}
+			\item Many learning problems and trained networks show low-rank structure (Oymak et al.; Hu et al.).
+			\item Fine-tuning has low \emph{intrinsic dimension}(Li et al.; Aghajanyan et al.).
+			\item Low intrinsic dimension motivates, but does not prove, low rank.
+			\item \textbf{LoRA hypothesis:} task-specific weight changes have low matrix rank,
+			      \[\operatorname{rank}(\Delta W)\ll\min(d,k)\]
+		\end{itemize}
+		\column{.54\textwidth}\textbf{LoRA formulation}\small
+		\[h=W_0x+\frac{\alpha}{r}ABx\]
+		\[\begin{gathered}W_0\in\mathbb R^{d\times k}\ \text{(frozen)},\quad x\in\mathbb R^{k},\\A\in\mathbb R^{d\times r},\quad B\in\mathbb R^{r\times k},\quad r\ll\min(d,k)\end{gathered}\]
+		\begin{itemize}
+			\item Objective: $\min_\Theta-\sum_{(x,y)\in\mathcal D}\log P_{\Phi_0+\Delta\Phi(\Theta)}(y\mid x)$ with $|\Theta|\ll|\Phi_0|$.
+			\item Rank $r$ sets update capacity; scaling $\alpha/r$ reduces retuning when $r$ changes.
+			\item Initialization: $A$ Gaussian, $B=0$, so $AB=0$ and training starts from exactly $W_0x$.
+			\item Per adapted matrix: train $r(d+k)$ parameters instead of $dk$; gradients and optimizer states shrink accordingly.
+		\end{itemize}
+	\end{columns}
+	\src{Oymak et al. (arXiv 2019); Li et al. (ICLR 2018); Aghajanyan et al. (ACL 2021); Hu et al. (ICLR 2022). Some papers swap the names $A$ and $B$.}\end{frame}
 
 % ===================== Lac: ~6.5 minutes =====================
 % Lac: 1 minute
-\begin{frame}{LoRA training: only $A$ and $B$ receive gradients}
+\begin{frame}{LoRA training}
 	\begin{columns}[c]
 		\column{.42\textwidth}\centering\includegraphics[height=.78\textheight,keepaspectratio]{lora_training.png}
 		\column{.55\textwidth}\begin{itemize}
@@ -156,10 +162,10 @@
 			\item Backpropagation computes the task loss gradient, but updates only $A$ and $B$.
 			\item $W_0$ is still stored and used in every forward pass.
 		\end{itemize}\end{columns}
-	\src{Report, Method, Training and inference; team illustration of Hu et al. (2022).}\end{frame}
+	\src{Team illustration of Hu et al. (ICLR 2022).}\end{frame}
 
 % Lac: 1 minute
-\begin{frame}{After training: separate adapter or merged weights}
+\begin{frame}{LoRA after training}
 	\begin{columns}[T]
 		\column{.48\textwidth}\centering\textbf{Keep adapter separate}\par\medskip
 		\includegraphics[height=.5\textheight,keepaspectratio]{lora_inference.png}
@@ -168,10 +174,10 @@
 		\includegraphics[height=.5\textheight,keepaspectratio]{lora_merge.png}
 		\par\small\raggedright $W_{\rm merged}=W_0+sAB$. One matrix multiplication, same as the original layer: no extra latency from a LoRA branch.
 	\end{columns}
-	\src{Report, Method, Training and inference; Hu et al. (2022).}\end{frame}
+	\src{Hu et al. (ICLR 2022).}\end{frame}
 
 % Lac: 1.5 minutes
-\begin{frame}{Worked example: counting trainable parameters}
+\begin{frame}{LoRA example: counting trainable parameters}
 	\small Setup: one weight matrix $W_0\in\mathbb R^{1024\times1024}$, so $d=k=1024$. Count weights only (no biases, no classifier).
 	\begin{columns}[T]
 		\column{.5\textwidth}
@@ -196,10 +202,10 @@
 		\end{tabular}
 		\par\raggedright\medskip Doubling $r$ doubles $N_{\rm LoRA}$: smaller $r$ is cheaper; larger $r$ gives the update more capacity.
 	\end{columns}
-	\src{Report, Method, Worked Example and Comparison Summary.}\end{frame}
+\end{frame}
 
 % Lac: 1 minute
-\begin{frame}{Worked example: trainable parameters $\neq$ GPU memory}
+\begin{frame}{LoRA example: trainable parameters $\neq$ GPU memory}
 	\begin{columns}[T]
 		\column{.42\textwidth}\small\textbf{What training must hold}\par\smallskip
 		\begin{tabular}{@{}lll@{}}\toprule
@@ -222,10 +228,10 @@
 		\end{tabular}
 		\par\raggedright\medskip Trainable parameters drop $128\times$, but this memory drops only $\approx3.9\times$: the frozen $W_0$ dominates. Activations narrow the gap further.
 	\end{columns}
-	\src{Report, Method, Trainable Parameters versus GPU Memory. Byte counts are our arithmetic under the stated assumptions: $8{,}192\times4$\,B = 32\,KiB.}\end{frame}
+	\src{Byte counts are our arithmetic under the stated assumptions: $8{,}192\times4$\,B = 32\,KiB.}\end{frame}
 
 % Lac: 1 minute
-\begin{frame}{O-LoRA: orthogonality and the core hypothesis}
+\begin{frame}{O-LoRA: orthogonality and core hypothesis}
 	\small\textbf{Setting.} Tasks $\mathcal D_1,\dots,\mathcal D_T$ arrive in sequence; only $\mathcal D_t$ is available at step $t$. Learning a new task can overwrite earlier ones (catastrophic forgetting).
 	\medskip
 	\begin{columns}[T]
@@ -245,7 +251,7 @@
 			\item So: give each task its own LoRA and keep the subspaces (approximately) orthogonal.
 		\end{itemize}
 	\end{columns}
-	\src{Report, Method, O-LoRA, Orthogonality constraint; summary, Comparing LoRA and O-LoRA; Wang et al. (2023).}\end{frame}
+	\src{Wang et al. (Findings of EMNLP 2023).}\end{frame}
 
 % Lac: 1 minute
 \begin{frame}{O-LoRA: method}
@@ -258,23 +264,9 @@
 		\item No replay data needed; updates can be merged into $W_t$, so inference needs no task ID.
 		\item A finite $\lambda$ encourages, but does not guarantee, orthogonality or zero forgetting; adapter storage grows with $T$.
 	\end{itemize}
-	\src{Report, Background and Method, O-LoRA; Wang et al. (2023). Applied to attention query and value weights in the paper.}\end{frame}
+	\src{Wang et al. (Findings of EMNLP 2023). Applied to attention query and value weights in the paper.}\end{frame}
 
-% ===================== Tinh: ~5.5 minutes =====================
-% Tinh: 1 minute
-\begin{frame}{LoRA and O-LoRA compared}
-	\small\begin{tabular}{@{}>{\raggedright\arraybackslash}p{.15\linewidth}>{\raggedright\arraybackslash}p{.38\linewidth}>{\raggedright\arraybackslash}p{.4\linewidth}@{}}\toprule
-		Aspect     & LoRA                                  & O-LoRA                                                              \\\midrule
-		Objective  & Adapt with fewer trainable parameters & Learn sequential tasks with limited interference                    \\
-		Trained    & Low-rank $A,B$ for the task           & Current $A_t,B_t$; earlier factors frozen                           \\
-		Loss       & Task loss                             & Task loss $+\ \lambda\cdot$orthogonality penalty                    \\
-		Forgetting & No explicit mechanism                 & Aims to mitigate; no guarantee                                      \\
-		Storage    & One small adapter per retained task   & Grows with the number of tasks                                      \\
-		Inference  & Selected adapter may be merged        & Updates accumulated into weights; factors kept for further learning \\\bottomrule
-	\end{tabular}
-	\medskip\par The papers use different models, data and settings: a conceptual comparison, not a performance ranking.
-	\src{Report, Background, Table~1; summary, Comparing LoRA and O-LoRA.}\end{frame}
-
+% ===================== Tinh: ~3.5 minutes =====================
 % Tinh: 1 minute
 \begin{frame}{Experiment setup}
 	\small DistilRoBERTa (\texttt{distilroberta-base}) on AG News: World, Sports, Business, Sci/Tech.
@@ -290,7 +282,7 @@
 		Learning rate & $2\times10^{-4}$                  & $2\times10^{-5}$ \\
 		LoRA config   & $r=8$, $\alpha=16$, dropout 0.05  & --               \\\bottomrule
 	\end{tabular}
-	\src{Report, Experiment, Table~4. Notebook config is $r=8$; the LoRA result files themselves do not record the rank.}\end{frame}
+	\src{AG News: Zhang et al. (NeurIPS 2015). Notebook config is $r=8$; the LoRA result files themselves do not record the rank.}\end{frame}
 
 % Tinh: 1.5 minutes
 \begin{frame}{Results on the AG News test split}
@@ -316,10 +308,10 @@
 		\end{tabular}
 		\par\raggedright\smallskip 474 of 7,600 errors. Largest confusion: Business$\leftrightarrow$Sci/Tech (139 and 108 examples).
 	\end{columns}
-	\src{Report, Results, Tables 5--6; metrics.csv, classification\_report.csv, predictions.csv, baseline\_results.csv.}\end{frame}
+	\src{metrics.csv, classification\_report.csv, predictions.csv, baseline\_results.csv.}\end{frame}
 
 % Tinh: 1 minute
-\begin{frame}{Limitations and when LoRA may not fit}
+\begin{frame}{Limitations}
 	\begin{columns}[T]
 		\column{.48\textwidth}\textbf{Limits of our evidence}\small
 		\begin{itemize}
@@ -338,29 +330,6 @@
 			\item Deployment: separate adapters ease task switching; merged weights simplify serving one model.
 		\end{itemize}
 	\end{columns}
-	\src{Report, Results, Limitations and When LoRA may not be the best choice.}\end{frame}
-
-% Tinh: 1 minute
-\begin{frame}{Conclusion}
-	\begin{itemize}
-		\item \textbf{Parameters:} rank-4 LoRA trains 8,192 instead of 1,048,576 weights for one $1024\times1024$ matrix (99.22\% fewer).
-		\item \textbf{Quality:} with 0.8944\% of parameters trained, LoRA reaches 93.76\% accuracy and macro F1; full fine-tuning is 1.26 pp higher.
-		\item \textbf{Resources:} LoRA used 47.31 vs.\ 66.38 min and 1.099 vs.\ 2.138 GiB peak allocated memory; savings are real but smaller than the parameter ratio.
-		\item \textbf{O-LoRA} extends LoRA to sequential tasks with an orthogonality penalty.
-		\item \textbf{Next:} repeat runs, match learning rates, sweep ranks, and measure merged vs.\ unmerged latency.
-	\end{itemize}
-	\medskip\centering LoRA fits when limiting trained parameters matters and the measured quality trade-off is acceptable.
-	\src{Report, Conclusion.}\end{frame}
-
-\begin{frame}{References}
-	\footnotesize\begin{itemize}
-		\item Hu et al. (2022). ``LoRA: Low-Rank Adaptation of Large Language Models.'' ICLR.
-		\item Wang et al. (2023). ``Orthogonal Subspace Learning for Language Model Continual Learning.'' Findings of EMNLP.
-		\item Li et al. (2018). ``Measuring the Intrinsic Dimension of Objective Landscapes.'' ICLR.
-		\item Aghajanyan et al. (2021). ``Intrinsic Dimensionality Explains the Effectiveness of Language Model Fine-Tuning.'' ACL.
-		\item Oymak et al. (2019). ``Generalization Guarantees for Neural Networks via Harnessing the Low-rank Structure of the Jacobian.''
-		\item Zhang et al. (2015). ``Character-level Convolutional Networks for Text Classification.'' NeurIPS.
-		\item CS420 seminar report, ``LoRA and O-LoRA: Parameter-Efficient Fine-Tuning of Large Models.''
-	\end{itemize}
 \end{frame}
+
 \end{document}
